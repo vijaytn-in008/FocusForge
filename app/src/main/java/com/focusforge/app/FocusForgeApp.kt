@@ -1,0 +1,50 @@
+package com.focusforge.app
+
+import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
+import dagger.hilt.android.HiltAndroidApp
+
+@HiltAndroidApp
+class FocusForgeApp : Application() {
+
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannels()
+    }
+
+    /**
+     * Creates notification channels required for foreground services and session alerts.
+     */
+    private fun createNotificationChannels() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val timerChannel = NotificationChannel(
+                TIMER_CHANNEL_ID,
+                getString(R.string.timer_notification_channel_name),
+                // IMPORTANCE_LOW prevents the phone from buzzing every second during countdown updates
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = getString(R.string.timer_notification_channel_desc)
+                setShowBadge(false)
+            }
+
+            val alertChannel = NotificationChannel(
+                ALERT_CHANNEL_ID,
+                "Session Completed Alert",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Alerts triggered when a focus block finishes"
+                enableVibration(true)
+            }
+
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager?.createNotificationChannels(listOf(timerChannel, alertChannel))
+        }
+    }
+
+    companion object {
+        const val TIMER_CHANNEL_ID = "focusforge_timer_channel"
+        const val ALERT_CHANNEL_ID = "focusforge_alert_channel"
+    }
+}

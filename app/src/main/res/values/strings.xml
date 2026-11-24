@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">FocusForge</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_timer">Timer</string>
+    <string name="nav_history">History</string>
+
+    <string name="timer_notification_channel_id">focusforge_timer_channel</string>
+    <string name="timer_notification_channel_name">Focus Timer</string>
+    <string name="timer_notification_channel_desc">Active countdown for focus sessions</string>
+    <string name="timer_notification_title">FocusForge Session</string>
+</resources>
