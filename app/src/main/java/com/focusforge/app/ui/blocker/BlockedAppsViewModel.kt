@@ -42,7 +42,10 @@ data class BlockerUiState(
     val filteredApps: List<SelectableApp> = emptyList(),
     val searchQuery: String = "",
     val isLoadingApps: Boolean = true,
-    val bypassLogs: List<EmergencyBypassLogEntity> = emptyList()
+    val bypassLogs: List<EmergencyBypassLogEntity> = emptyList(),
+    val attempts: List<com.focusforge.app.data.local.entity.BlockedAppAttemptEntity> = emptyList(),
+    val attemptsGrouped: List<com.focusforge.app.data.local.dao.AppAttemptCount> = emptyList(),
+    val totalAttemptsCount: Int = 0
 ) {
     val needsPermissions: Boolean
         get() = !hasUsageAccess || !hasOverlayAccess
@@ -63,7 +66,24 @@ class BlockedAppsViewModel @Inject constructor(
         loadInstalledApps()
         observeBlockedApps()
         observeBypassLogs()
+        observeAttempts()
         observeBlockerServiceState()
+    }
+
+    private fun observeAttempts() {
+        viewModelScope.launch {
+            blockedAppRepository.getAllAttempts().collect { list ->
+                _uiState.value = _uiState.value.copy(
+                    attempts = list,
+                    totalAttemptsCount = list.size
+                )
+            }
+        }
+        viewModelScope.launch {
+            blockedAppRepository.getAttemptsGroupedByApp().collect { grouped ->
+                _uiState.value = _uiState.value.copy(attemptsGrouped = grouped)
+            }
+        }
     }
 
     fun checkPermissions() {

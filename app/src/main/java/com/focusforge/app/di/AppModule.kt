@@ -3,6 +3,7 @@ package com.focusforge.app.di
 import android.content.Context
 import androidx.room.Room
 import com.focusforge.app.data.local.AppDatabase
+import com.focusforge.app.data.local.dao.BlockedAppAttemptDao
 import com.focusforge.app.data.local.dao.BlockedAppDao
 import com.focusforge.app.data.local.dao.EmergencyBypassLogDao
 import com.focusforge.app.data.local.dao.SessionDao
@@ -25,7 +26,7 @@ object AppModule {
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
         )
-            .addMigrations(AppDatabase.MIGRATION_1_2)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
             .build()
     }
 
@@ -42,5 +43,10 @@ object AppModule {
     @Provides
     fun provideEmergencyBypassLogDao(database: AppDatabase): EmergencyBypassLogDao {
         return database.emergencyBypassLogDao()
+    }
+
+    @Provides
+    fun provideBlockedAppAttemptDao(database: AppDatabase): BlockedAppAttemptDao {
+        return database.blockedAppAttemptDao()
     }
 }

@@ -1,7 +1,10 @@
 package com.focusforge.app.data.repository
 
+import com.focusforge.app.data.local.dao.AppAttemptCount
+import com.focusforge.app.data.local.dao.BlockedAppAttemptDao
 import com.focusforge.app.data.local.dao.BlockedAppDao
 import com.focusforge.app.data.local.dao.EmergencyBypassLogDao
+import com.focusforge.app.data.local.entity.BlockedAppAttemptEntity
 import com.focusforge.app.data.local.entity.BlockedAppEntity
 import com.focusforge.app.data.local.entity.EmergencyBypassLogEntity
 import kotlinx.coroutines.flow.Flow
@@ -17,12 +20,17 @@ interface BlockedAppRepository {
     suspend fun removeApp(packageName: String)
     suspend fun logBypass(durationSeconds: Int = 60, reason: String = ""): Long
     fun getBypassLogs(): Flow<List<EmergencyBypassLogEntity>>
+    suspend fun logBlockedAppAttempt(packageName: String, appName: String): Long
+    fun getAllAttempts(): Flow<List<BlockedAppAttemptEntity>>
+    fun getTotalAttemptCount(): Flow<Int>
+    fun getAttemptsGroupedByApp(): Flow<List<AppAttemptCount>>
 }
 
 @Singleton
 class BlockedAppRepositoryImpl @Inject constructor(
     private val blockedAppDao: BlockedAppDao,
-    private val emergencyBypassLogDao: EmergencyBypassLogDao
+    private val emergencyBypassLogDao: EmergencyBypassLogDao,
+    private val blockedAppAttemptDao: BlockedAppAttemptDao
 ) : BlockedAppRepository {
 
     override fun getAllApps(): Flow<List<BlockedAppEntity>> = blockedAppDao.getAll()
@@ -57,4 +65,19 @@ class BlockedAppRepositoryImpl @Inject constructor(
     }
 
     override fun getBypassLogs(): Flow<List<EmergencyBypassLogEntity>> = emergencyBypassLogDao.getAll()
+
+    override suspend fun logBlockedAppAttempt(packageName: String, appName: String): Long {
+        return blockedAppAttemptDao.insert(
+            BlockedAppAttemptEntity(
+                packageName = packageName,
+                appName = appName
+            )
+        )
+    }
+
+    override fun getAllAttempts(): Flow<List<BlockedAppAttemptEntity>> = blockedAppAttemptDao.getAllAttempts()
+
+    override fun getTotalAttemptCount(): Flow<Int> = blockedAppAttemptDao.getTotalAttemptCount()
+
+    override fun getAttemptsGroupedByApp(): Flow<List<AppAttemptCount>> = blockedAppAttemptDao.getAttemptsGroupedByApp()
 }

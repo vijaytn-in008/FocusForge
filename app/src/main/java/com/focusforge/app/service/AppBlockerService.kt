@@ -180,7 +180,28 @@ class AppBlockerService : Service() {
         return null
     }
 
+    private var lastInterceptedPackage: String? = null
+    private var lastInterceptedTime: Long = 0L
+
     private fun launchBlockedAppOverlay(blockedPackage: String) {
+        val now = System.currentTimeMillis()
+        // Deduplicate logs within 3 seconds for the same package
+        if (blockedPackage != lastInterceptedPackage || (now - lastInterceptedTime) > 3000L) {
+            lastInterceptedPackage = blockedPackage
+            lastInterceptedTime = now
+
+            serviceScope.launch {
+                val appName = try {
+                    val pm = applicationContext.packageManager
+                    val info = pm.getApplicationInfo(blockedPackage, 0)
+                    pm.getApplicationLabel(info).toString()
+                } catch (_: Exception) {
+                    blockedPackage
+                }
+                blockedAppRepository.logBlockedAppAttempt(blockedPackage, appName)
+            }
+        }
+
         val intent = Intent(this, BlockedAppActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or

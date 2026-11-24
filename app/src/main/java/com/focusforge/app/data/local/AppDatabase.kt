@@ -5,9 +5,11 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.focusforge.app.data.local.dao.BlockedAppAttemptDao
 import com.focusforge.app.data.local.dao.BlockedAppDao
 import com.focusforge.app.data.local.dao.EmergencyBypassLogDao
 import com.focusforge.app.data.local.dao.SessionDao
+import com.focusforge.app.data.local.entity.BlockedAppAttemptEntity
 import com.focusforge.app.data.local.entity.BlockedAppEntity
 import com.focusforge.app.data.local.entity.EmergencyBypassLogEntity
 import com.focusforge.app.data.local.entity.SessionEntity
@@ -20,9 +22,10 @@ import com.focusforge.app.data.local.entity.SessionEntity
     entities = [
         SessionEntity::class,
         BlockedAppEntity::class,
-        EmergencyBypassLogEntity::class
+        EmergencyBypassLogEntity::class,
+        BlockedAppAttemptEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -30,14 +33,11 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
     abstract fun blockedAppDao(): BlockedAppDao
     abstract fun emergencyBypassLogDao(): EmergencyBypassLogDao
+    abstract fun blockedAppAttemptDao(): BlockedAppAttemptDao
 
     companion object {
         const val DATABASE_NAME = "focusforge_db"
 
-        /**
-         * Migration from version 1 to 2 preserves existing sessions while creating
-         * tables for blocked apps and emergency bypass logging.
-         */
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -57,6 +57,21 @@ abstract class AppDatabase : RoomDatabase() {
                         `timestamp` INTEGER NOT NULL,
                         `durationSeconds` INTEGER NOT NULL,
                         `reason` TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `blocked_app_attempts` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `packageName` TEXT NOT NULL,
+                        `appName` TEXT NOT NULL,
+                        `timestamp` INTEGER NOT NULL
                     )
                     """.trimIndent()
                 )
