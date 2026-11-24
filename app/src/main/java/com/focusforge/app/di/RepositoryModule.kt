@@ -1,5 +1,7 @@
 package com.focusforge.app.di
 
+import com.focusforge.app.data.repository.BlockedAppRepository
+import com.focusforge.app.data.repository.BlockedAppRepositoryImpl
 import com.focusforge.app.data.repository.SessionRepository
 import com.focusforge.app.data.repository.SessionRepositoryImpl
 import com.focusforge.app.data.repository.UserPreferencesRepository
@@ -25,4 +27,10 @@ abstract class RepositoryModule {
     abstract fun bindUserPreferencesRepository(
         userPreferencesRepositoryImpl: UserPreferencesRepositoryImpl
     ): UserPreferencesRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindBlockedAppRepository(
+        blockedAppRepositoryImpl: BlockedAppRepositoryImpl
+    ): BlockedAppRepository
 }

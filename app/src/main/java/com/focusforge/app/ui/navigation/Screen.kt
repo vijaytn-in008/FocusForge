@@ -3,9 +3,11 @@ package com.focusforge.app.ui.navigation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -29,6 +31,13 @@ sealed class Screen(
         unselectedIcon = Icons.Outlined.Timer
     )
 
+    data object Shield : Screen(
+        route = "shield",
+        title = "Shield",
+        selectedIcon = Icons.Filled.Shield,
+        unselectedIcon = Icons.Outlined.Shield
+    )
+
     data object History : Screen(
         route = "history",
         title = "History",
@@ -36,7 +45,14 @@ sealed class Screen(
         unselectedIcon = Icons.Outlined.History
     )
 
+    data object Permissions : Screen(
+        route = "permissions",
+        title = "Permissions",
+        selectedIcon = Icons.Filled.Shield,
+        unselectedIcon = Icons.Outlined.Shield
+    )
+
     companion object {
-        val bottomNavScreens = listOf(Home, Timer, History)
+        val bottomNavScreens = listOf(Home, Timer, Shield, History)
     }
 }

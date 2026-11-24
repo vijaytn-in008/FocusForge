@@ -1,0 +1,199 @@
+package com.focusforge.app.ui.blocker
+
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
+import android.graphics.drawable.Drawable
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.focusforge.app.data.local.entity.EmergencyBypassLogEntity
+import com.focusforge.app.data.repository.BlockedAppRepository
+import com.focusforge.app.data.repository.UserPreferencesRepository
+import com.focusforge.app.service.AppBlockerService
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import javax.inject.Inject
+
+data class SelectableApp(
+    val packageName: String,
+    val appName: String,
+    val iconDrawable: Drawable?,
+    val isBlocked: Boolean = false,
+    val isExempt: Boolean = false
+)
+
+data class BlockerUiState(
+    val isBlockerRunning: Boolean = false,
+    val isBypassActive: Boolean = false,
+    val bypassRemainingSeconds: Int = 0,
+    val apps: List<SelectableApp> = emptyList(),
+    val filteredApps: List<SelectableApp> = emptyList(),
+    val searchQuery: String = "",
+    val isLoadingApps: Boolean = true,
+    val bypassLogs: List<EmergencyBypassLogEntity> = emptyList()
+)
+
+@HiltViewModel
+class BlockedAppsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val blockedAppRepository: BlockedAppRepository,
+    private val userPreferencesRepository: UserPreferencesRepository
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(BlockerUiState())
+    val uiState: StateFlow<BlockerUiState> = _uiState.asStateFlow()
+
+    init {
+        loadInstalledApps()
+        observeBlockedApps()
+        observeBypassLogs()
+        observeBlockerServiceState()
+    }
+
+    private fun observeBlockerServiceState() {
+        viewModelScope.launch {
+            combine(
+                AppBlockerService.isServiceRunning,
+                AppBlockerService.isBypassActive,
+                AppBlockerService.bypassRemainingSeconds
+            ) { isRunning, isBypass, remainingSec ->
+                Triple(isRunning, isBypass, remainingSec)
+            }.collect { (isRunning, isBypass, remainingSec) ->
+                _uiState.value = _uiState.value.copy(
+                    isBlockerRunning = isRunning,
+                    isBypassActive = isBypass,
+                    bypassRemainingSeconds = remainingSec
+                )
+            }
+        }
+    }
+
+    private fun observeBlockedApps() {
+        viewModelScope.launch {
+            blockedAppRepository.getAllApps().collect { blockedEntities ->
+                val blockedSet = blockedEntities.filter { it.isBlocked }.map { it.packageName }.toSet()
+                val currentApps = _uiState.value.apps.map { app ->
+                    app.copy(isBlocked = blockedSet.contains(app.packageName))
+                }
+                _uiState.value = _uiState.value.copy(
+                    apps = currentApps,
+                    filteredApps = filterApps(currentApps, _uiState.value.searchQuery)
+                )
+            }
+        }
+    }
+
+    private fun observeBypassLogs() {
+        viewModelScope.launch {
+            blockedAppRepository.getBypassLogs().collect { logs ->
+                _uiState.value = _uiState.value.copy(bypassLogs = logs)
+            }
+        }
+    }
+
+    fun loadInstalledApps() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.value = _uiState.value.copy(isLoadingApps = true)
+
+            val pm = context.packageManager
+            val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+            }
+            val resolveInfos = pm.queryIntentActivities(mainIntent, 0)
+
+            val activeBlockedSet = blockedAppRepository.getActiveBlockedAppsSync()
+                .map { it.packageName }.toSet()
+
+            val appList = mutableListOf<SelectableApp>()
+            val seenPackages = HashSet<String>()
+
+            for (info in resolveInfos) {
+                val pkgName = info.activityInfo.packageName
+                if (seenPackages.add(pkgName)) {
+                    // Skip ourselves
+                    if (pkgName == context.packageName) continue
+
+                    val isExempt = AppBlockerService.HARDCODED_EXEMPT_PACKAGES.contains(pkgName)
+                    val label = info.loadLabel(pm).toString()
+                    val icon = try {
+                        info.loadIcon(pm)
+                    } catch (_: Exception) {
+                        null
+                    }
+
+                    appList.add(
+                        SelectableApp(
+                            packageName = pkgName,
+                            appName = label,
+                            iconDrawable = icon,
+                            isBlocked = activeBlockedSet.contains(pkgName),
+                            isExempt = isExempt
+                        )
+                    )
+                }
+            }
+
+            appList.sortBy { it.appName.lowercase() }
+
+            withContext(Dispatchers.Main) {
+                _uiState.value = _uiState.value.copy(
+                    apps = appList,
+                    filteredApps = filterApps(appList, _uiState.value.searchQuery),
+                    isLoadingApps = false
+                )
+            }
+        }
+    }
+
+    fun onSearchQueryChanged(query: String) {
+        _uiState.value = _uiState.value.copy(
+            searchQuery = query,
+            filteredApps = filterApps(_uiState.value.apps, query)
+        )
+    }
+
+    private fun filterApps(apps: List<SelectableApp>, query: String): List<SelectableApp> {
+        if (query.isBlank()) return apps
+        return apps.filter {
+            it.appName.contains(query, ignoreCase = true) ||
+            it.packageName.contains(query, ignoreCase = true)
+        }
+    }
+
+    fun toggleAppBlocked(app: SelectableApp) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val newBlockedState = !app.isBlocked
+            blockedAppRepository.setAppBlocked(
+                packageName = app.packageName,
+                appName = app.appName,
+                isBlocked = newBlockedState
+            )
+        }
+    }
+
+    fun toggleBlockerService() {
+        val currentlyRunning = _uiState.value.isBlockerRunning
+        if (currentlyRunning) {
+            AppBlockerService.stop(context)
+            saveBlockerPref(false)
+        } else {
+            AppBlockerService.start(context)
+            saveBlockerPref(true)
+        }
+    }
+
+    private fun saveBlockerPref(enabled: Boolean) {
+        val prefs = context.getSharedPreferences("focusforge_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("app_blocker_enabled", enabled).apply()
+    }
+}

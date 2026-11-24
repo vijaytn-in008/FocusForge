@@ -3,6 +3,8 @@ package com.focusforge.app.di
 import android.content.Context
 import androidx.room.Room
 import com.focusforge.app.data.local.AppDatabase
+import com.focusforge.app.data.local.dao.BlockedAppDao
+import com.focusforge.app.data.local.dao.EmergencyBypassLogDao
 import com.focusforge.app.data.local.dao.SessionDao
 import dagger.Module
 import dagger.Provides
@@ -28,5 +30,15 @@ object AppModule {
     @Provides
     fun provideSessionDao(database: AppDatabase): SessionDao {
         return database.sessionDao()
+    }
+
+    @Provides
+    fun provideBlockedAppDao(database: AppDatabase): BlockedAppDao {
+        return database.blockedAppDao()
+    }
+
+    @Provides
+    fun provideEmergencyBypassLogDao(database: AppDatabase): EmergencyBypassLogDao {
+        return database.emergencyBypassLogDao()
     }
 }

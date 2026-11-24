@@ -2,11 +2,15 @@ package com.focusforge.app.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.focusforge.app.ui.blocker.BlockedAppsScreen
+import com.focusforge.app.ui.blocker.BlockedAppsViewModel
 import com.focusforge.app.ui.history.HistoryScreen
 import com.focusforge.app.ui.home.HomeScreen
+import com.focusforge.app.ui.permissions.PermissionsScreen
 import com.focusforge.app.ui.timer.TimerScreen
 
 @Composable
@@ -27,6 +31,13 @@ fun NavGraph(
                         launchSingleTop = true
                         restoreState = true
                     }
+                },
+                onNavigateToShield = {
+                    navController.navigate(Screen.Shield.route) {
+                        popUpTo(Screen.Home.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
             )
         }
@@ -35,8 +46,26 @@ fun NavGraph(
             TimerScreen()
         }
 
+        composable(Screen.Shield.route) {
+            val blockedAppsViewModel: BlockedAppsViewModel = hiltViewModel()
+            BlockedAppsScreen(
+                onNavigateToPermissions = {
+                    navController.navigate(Screen.Permissions.route)
+                },
+                viewModel = blockedAppsViewModel
+            )
+        }
+
         composable(Screen.History.route) {
             HistoryScreen()
+        }
+
+        composable(Screen.Permissions.route) {
+            PermissionsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
         }
     }
 }

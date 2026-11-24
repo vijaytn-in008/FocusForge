@@ -20,10 +20,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Button
@@ -57,6 +60,7 @@ import com.focusforge.app.util.TimeUtils
 @Composable
 fun HomeScreen(
     onNavigateToTimer: () -> Unit,
+    onNavigateToShield: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -98,7 +102,7 @@ fun HomeScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = androidx.compose.material.icons.Icons.Default.School,
+                            imageVector = Icons.Default.School,
                             contentDescription = "Focus Guide",
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(24.dp)
@@ -108,15 +112,18 @@ fun HomeScreen(
             }
         }
 
-        // Interactive Focus Guide Card
+        // Blocker Shield Status Card
         item {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { viewModel.openBotGuide() },
+                    .clickable { onNavigateToShield() },
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                    containerColor = if (uiState.isBlockerActive)
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 )
             ) {
                 Row(
@@ -129,13 +136,16 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(Emerald500.copy(alpha = 0.2f)),
+                            .background(
+                                if (uiState.isBlockerActive) Emerald500.copy(alpha = 0.2f)
+                                else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = androidx.compose.material.icons.Icons.Default.School,
+                            imageVector = if (uiState.isBlockerActive) Icons.Default.Shield else Icons.Default.Block,
                             contentDescription = null,
-                            tint = Emerald600,
+                            tint = if (uiState.isBlockerActive) Emerald600 else MaterialTheme.colorScheme.outline,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -144,21 +154,27 @@ fun HomeScreen(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Study & Focus Guide",
+                            text = if (uiState.isBlockerActive) "App Shield Active" else "App Shield Inactive",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = if (uiState.userName.isNotBlank()) {
-                                "Tap to review Deep Work principles or update your profile name (${uiState.userName})."
-                            } else {
-                                "Tap to learn the core principles of Deep Work and app features."
-                            },
+                            text = if (uiState.isBlockerActive)
+                                "${uiState.blockedAppCount} distraction app(s) guarded"
+                            else
+                                "Tap to configure and protect your focus",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Open Shield",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -362,13 +378,13 @@ fun HomeScreen(
         }
     }
 
-    // ForgeBot Interactive Guide Dialog
+    // Interactive Guide Dialog
     if (uiState.showBotGuide) {
         ForgeBotGuideDialog(
             initialUserName = uiState.userName,
             onSaveUserName = viewModel::saveUserName,
             onCompleteOnboarding = viewModel::completeOnboarding,
-            onDismiss = viewModel::closeBotGuide,
+            onDismiss = viewModel::dismissBotGuide,
             onNavigateToTimer = onNavigateToTimer
         )
     }
@@ -403,7 +419,7 @@ private fun TodaySessionItem(session: Session) {
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
                             Icon(
-                                imageVector = if (isDeep) androidx.compose.material.icons.Icons.Default.Psychology else androidx.compose.material.icons.Icons.Default.EditNote,
+                                imageVector = if (isDeep) Icons.Default.Psychology else Icons.Default.EditNote,
                                 contentDescription = null,
                                 tint = if (isDeep) Emerald600 else Amber500,
                                 modifier = Modifier.size(13.dp)

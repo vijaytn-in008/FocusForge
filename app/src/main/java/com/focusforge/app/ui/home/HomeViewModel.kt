@@ -3,8 +3,10 @@ package com.focusforge.app.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.focusforge.app.data.model.Session
+import com.focusforge.app.data.repository.BlockedAppRepository
 import com.focusforge.app.data.repository.SessionRepository
 import com.focusforge.app.data.repository.UserPreferencesRepository
+import com.focusforge.app.service.AppBlockerService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,6 +23,8 @@ data class HomeUiState(
     val todayDeepMinutes: Int = 0,
     val todayTotalMinutes: Int = 0,
     val todaySessions: List<Session> = emptyList(),
+    val isBlockerActive: Boolean = false,
+    val blockedAppCount: Int = 0,
     val isLoading: Boolean = false
 ) {
     val shallowMinutes: Int
@@ -36,19 +40,27 @@ data class HomeUiState(
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     sessionRepository: SessionRepository,
+    blockedAppRepository: BlockedAppRepository,
     private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
     private val _manualShowBotGuide = MutableStateFlow<Boolean?>(null)
 
     val uiState: StateFlow<HomeUiState> = combine(
-        sessionRepository.getTodayDeepMinutes(),
-        sessionRepository.getTodayTotalMinutes(),
-        sessionRepository.getTodaySessions(),
-        userPreferencesRepository.getUserName(),
-        userPreferencesRepository.isOnboardingCompleted()
-    ) { deepMin, totalMin, sessions, userName, onboardingCompleted ->
-        // If the user hasn't completed onboarding, automatically show the bot guide
+        combine(
+            sessionRepository.getTodayDeepMinutes(),
+            sessionRepository.getTodayTotalMinutes(),
+            sessionRepository.getTodaySessions()
+        ) { deep, total, sessions -> Triple(deep, total, sessions) },
+        combine(
+            userPreferencesRepository.getUserName(),
+            userPreferencesRepository.isOnboardingCompleted(),
+            AppBlockerService.isServiceRunning,
+            blockedAppRepository.getActiveBlockedApps()
+        ) { name, onboard, running, blockedList ->
+            Quad(name, onboard, running, blockedList.size)
+        }
+    ) { (deepMin, totalMin, sessions), (userName, onboardingCompleted, isBlockerRunning, blockedCount) ->
         val isManual = _manualShowBotGuide.value
         val showGuide = isManual ?: (!onboardingCompleted)
 
@@ -59,6 +71,8 @@ class HomeViewModel @Inject constructor(
             todayDeepMinutes = deepMin,
             todayTotalMinutes = totalMin,
             todaySessions = sessions,
+            isBlockerActive = isBlockerRunning,
+            blockedAppCount = blockedCount,
             isLoading = false
         )
     }.stateIn(
@@ -84,7 +98,9 @@ class HomeViewModel @Inject constructor(
         _manualShowBotGuide.value = true
     }
 
-    fun closeBotGuide() {
+    fun dismissBotGuide() {
         _manualShowBotGuide.value = false
     }
+
+    private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 }

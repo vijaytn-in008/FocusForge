@@ -38,13 +38,23 @@ class FocusForgeApp : Application() {
                 enableVibration(true)
             }
 
+            val blockerChannel = NotificationChannel(
+                BLOCKER_CHANNEL_ID,
+                "App Blocker Shield",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Ongoing notification for distraction app monitoring"
+                setShowBadge(false)
+            }
+
             val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager?.createNotificationChannels(listOf(timerChannel, alertChannel))
+            notificationManager?.createNotificationChannels(listOf(timerChannel, alertChannel, blockerChannel))
         }
     }
 
     companion object {
         const val TIMER_CHANNEL_ID = "focusforge_timer_channel"
         const val ALERT_CHANNEL_ID = "focusforge_alert_channel"
+        const val BLOCKER_CHANNEL_ID = "focusforge_blocker_channel"
     }
 }
