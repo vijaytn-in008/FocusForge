@@ -1,6 +1,7 @@
 package com.focusforge.app.ui.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,8 +19,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Button
@@ -44,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.focusforge.app.data.model.Session
 import com.focusforge.app.data.model.SessionType
+import com.focusforge.app.ui.bot.ForgeBotGuideDialog
 import com.focusforge.app.ui.theme.Amber500
 import com.focusforge.app.ui.theme.Emerald500
 import com.focusforge.app.ui.theme.Emerald600
@@ -63,7 +66,7 @@ fun HomeScreen(
         contentPadding = PaddingValues(top = 28.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // App Header
+        // App Header with Personalized Greeting
         item {
             Column {
                 Row(
@@ -73,7 +76,7 @@ fun HomeScreen(
                 ) {
                     Column {
                         Text(
-                            text = "FocusForge",
+                            text = if (uiState.userName.isNotBlank()) "Hello, ${uiState.userName} 👋" else "FocusForge",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
@@ -88,14 +91,70 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(44.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer),
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                            .clickable { viewModel.openBotGuide() },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Bolt,
-                            contentDescription = null,
+                            imageVector = Icons.Default.SmartToy,
+                            contentDescription = "ForgeBot Guide",
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Interactive ForgeBot Assistant Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { viewModel.openBotGuide() },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Emerald500.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SmartToy,
+                            contentDescription = null,
+                            tint = Emerald600,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "ForgeBot • Guide & Study Tips",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = if (uiState.userName.isNotBlank()) {
+                                "Tap to chat with ForgeBot or change your profile name (${uiState.userName})."
+                            } else {
+                                "Tap here to meet ForgeBot & take a 1-minute quick tour."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -234,7 +293,7 @@ fun HomeScreen(
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Icon(
-                    imageVector = Icons.Default.ArrowForward,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
                     modifier = Modifier.size(20.dp)
                 )
@@ -299,6 +358,17 @@ fun HomeScreen(
                 TodaySessionItem(session = session)
             }
         }
+    }
+
+    // ForgeBot Interactive Guide Dialog
+    if (uiState.showBotGuide) {
+        ForgeBotGuideDialog(
+            initialUserName = uiState.userName,
+            onSaveUserName = viewModel::saveUserName,
+            onCompleteOnboarding = viewModel::completeOnboarding,
+            onDismiss = viewModel::closeBotGuide,
+            onNavigateToTimer = onNavigateToTimer
+        )
     }
 }
 

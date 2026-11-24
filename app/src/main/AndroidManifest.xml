@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Wake lock to keep countdown timer accurate when phone screen is locked -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <!-- Foreground service permissions for timer countdown -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />

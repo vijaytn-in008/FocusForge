@@ -52,6 +52,8 @@ class TimerService : Service() {
     override fun onCreate() {
         super.onCreate()
         acquireWakeLock()
+        // Immediately attach foreground notification to satisfy Android 14/15 strict foreground launch window
+        startForegroundWithNotification(_timerState.value)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -142,16 +144,20 @@ class TimerService : Service() {
     }
 
     private fun startForegroundWithNotification(state: TimerState) {
-        val notification = buildNotification(state)
-        // Android 14 (API 34) requires explicit foreground service type
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        try {
+            val notification = buildNotification(state)
+            // Android 14+ (API 34/35) requires explicit foreground service type
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("TimerService", "Failed to start foreground service notification: ${e.message}")
         }
     }
 
@@ -252,23 +258,32 @@ class TimerService : Service() {
      * Uses 3 hours max timeout to protect against battery drain bugs.
      */
     private fun acquireWakeLock() {
-        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
-        wakeLock = powerManager?.newWakeLock(
-            PowerManager.PARTIAL_WAKE_LOCK,
-            "FocusForge::TimerWakeLock"
-        )?.apply {
-            setReferenceCounted(false)
-            acquire(3 * 60 * 60 * 1000L) // 3 hours timeout safety
+        try {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+            wakeLock = powerManager?.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                "FocusForge::TimerWakeLock"
+            )?.apply {
+                setReferenceCounted(false)
+                acquire(3 * 60 * 60 * 1000L) // 3 hours timeout safety
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("TimerService", "Could not acquire WakeLock: ${e.message}")
         }
     }
 
     private fun releaseWakeLock() {
-        wakeLock?.let {
-            if (it.isHeld) {
-                it.release()
+        try {
+            wakeLock?.let {
+                if (it.isHeld) {
+                    it.release()
+                }
             }
+        } catch (e: Exception) {
+            android.util.Log.w("TimerService", "Error releasing WakeLock: ${e.message}")
+        } finally {
+            wakeLock = null
         }
-        wakeLock = null
     }
 
     override fun onDestroy() {
