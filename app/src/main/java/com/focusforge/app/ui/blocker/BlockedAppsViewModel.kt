@@ -8,6 +8,8 @@ import android.graphics.drawable.Drawable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.focusforge.app.data.local.entity.EmergencyBypassLogEntity
+import com.focusforge.app.data.model.DailyScreenTimeSummary
+import com.focusforge.app.data.repository.ScreenTimeRepository
 import com.focusforge.app.data.repository.BlockedAppRepository
 import com.focusforge.app.data.repository.UserPreferencesRepository
 import com.focusforge.app.service.AppBlockerService
@@ -45,7 +47,9 @@ data class BlockerUiState(
     val bypassLogs: List<EmergencyBypassLogEntity> = emptyList(),
     val attempts: List<com.focusforge.app.data.local.entity.BlockedAppAttemptEntity> = emptyList(),
     val attemptsGrouped: List<com.focusforge.app.data.local.dao.AppAttemptCount> = emptyList(),
-    val totalAttemptsCount: Int = 0
+    val totalAttemptsCount: Int = 0,
+    val screenTimeSummary: DailyScreenTimeSummary = DailyScreenTimeSummary(0L, emptyList(), emptyList(), null),
+    val isLoadingScreenTime: Boolean = false
 ) {
     val needsPermissions: Boolean
         get() = !hasUsageAccess || !hasOverlayAccess
@@ -55,6 +59,7 @@ data class BlockerUiState(
 class BlockedAppsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val blockedAppRepository: BlockedAppRepository,
+    private val screenTimeRepository: ScreenTimeRepository,
     private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
@@ -67,7 +72,19 @@ class BlockedAppsViewModel @Inject constructor(
         observeBlockedApps()
         observeBypassLogs()
         observeAttempts()
+        loadScreenTime()
         observeBlockerServiceState()
+    }
+
+    fun loadScreenTime() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingScreenTime = true)
+            val summary = screenTimeRepository.getTodayScreenTimeSummary()
+            _uiState.value = _uiState.value.copy(
+                screenTimeSummary = summary,
+                isLoadingScreenTime = false
+            )
+        }
     }
 
     private fun observeAttempts() {

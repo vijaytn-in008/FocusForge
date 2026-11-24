@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.History
@@ -62,6 +63,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.focusforge.app.data.model.DailyScreenTimeSummary
+import com.focusforge.app.data.model.AppCategoryMedium
 import com.focusforge.app.data.local.dao.AppAttemptCount
 import com.focusforge.app.data.local.entity.BlockedAppAttemptEntity
 import com.focusforge.app.data.local.entity.EmergencyBypassLogEntity
@@ -120,7 +123,7 @@ fun BlockedAppsScreen(
                 onNavigateToPermissions = onNavigateToPermissions
             )
 
-            // Tabs: Apps List, Intercepted Attempts, Bypass Logs
+            // Tabs: Apps List, Screen Time, Intercepted Attempts, Bypass Logs
             TabRow(selectedTabIndex = selectedTab) {
                 Tab(
                     selected = selectedTab == 0,
@@ -129,13 +132,21 @@ fun BlockedAppsScreen(
                 )
                 Tab(
                     selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    text = { Text("Attempts (${uiState.totalAttemptsCount})") }
+                    onClick = {
+                        selectedTab = 1
+                        viewModel.loadScreenTime()
+                    },
+                    text = { Text("Screen Time") }
                 )
                 Tab(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    text = { Text("Bypass (${uiState.bypassLogs.size})") }
+                    text = { Text("Attempts (${uiState.totalAttemptsCount})") }
+                )
+                Tab(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    text = { Text("Bypass") }
                 )
             }
 
@@ -186,12 +197,19 @@ fun BlockedAppsScreen(
                     }
                 }
                 1 -> {
+                    ScreenTimeTrendsView(
+                        summary = uiState.screenTimeSummary,
+                        isLoading = uiState.isLoadingScreenTime,
+                        onRefresh = { viewModel.loadScreenTime() }
+                    )
+                }
+                2 -> {
                     AttemptsLogView(
                         attempts = uiState.attempts,
                         groupedAttempts = uiState.attemptsGrouped
                     )
                 }
-                2 -> {
+                3 -> {
                     BypassLogsList(logs = uiState.bypassLogs)
                 }
             }
@@ -423,6 +441,228 @@ fun AppItemRow(
                         checkedTrackColor = MaterialTheme.colorScheme.errorContainer
                     )
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun ScreenTimeTrendsView(
+    summary: DailyScreenTimeSummary,
+    isLoading: Boolean,
+    onRefresh: () -> Unit
+) {
+    if (isLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    if (summary.totalScreenTimeMinutes == 0 && summary.appUsageList.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Default.QueryStats,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.outline
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "No screen time recorded for today yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        }
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Total Screen Time Hero Card
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        text = "TODAY'S PHONE SCREEN TIME",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = TimeUtils.formatMinutesToDuration(summary.totalScreenTimeMinutes),
+                        style = MaterialTheme.typography.headlineLarge.copy(
+                            fontWeight = FontWeight.ExtraBold
+                        ),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = if (summary.topApp != null) {
+                            "Most used: ${summary.topApp.appName} (${summary.topApp.totalMinutes}m)"
+                        } else {
+                            "Total active time on your phone"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    )
+                }
+            }
+        }
+
+        // Category / Medium Breakdown Card
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "USAGE BY MEDIUM",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    summary.categoryBreakdown.forEach { categoryStat ->
+                        Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = categoryStat.displayName,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                                )
+                                Text(
+                                    text = "${categoryStat.totalMinutes}m (${(categoryStat.percentageOfTotal * 100).toInt()}%)",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            androidx.compose.material3.LinearProgressIndicator(
+                                progress = { categoryStat.percentageOfTotal },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp)),
+                                color = when (categoryStat.category) {
+                                    AppCategoryMedium.SOCIAL -> MaterialTheme.colorScheme.error
+                                    AppCategoryMedium.MEDIA_ENTERTAINMENT -> MaterialTheme.colorScheme.tertiary
+                                    AppCategoryMedium.PRODUCTIVITY_EDUCATION -> MaterialTheme.colorScheme.primary
+                                    AppCategoryMedium.GAMING -> MaterialTheme.colorScheme.errorContainer
+                                    else -> MaterialTheme.colorScheme.outline
+                                },
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Top App Usage List
+        item {
+            Text(
+                text = "Apps Screen Time Breakdown",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+
+        items(summary.appUsageList.take(15)) { appStat ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (appStat.iconDrawable != null) {
+                        val bitmap = remember(appStat.iconDrawable) {
+                            appStat.iconDrawable.toBitmap(100, 100).asImageBitmap()
+                        }
+                        Image(
+                            bitmap = bitmap,
+                            contentDescription = appStat.appName,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = appStat.appName,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                        Text(
+                            text = when (appStat.categoryMedium) {
+                                AppCategoryMedium.SOCIAL -> "Social"
+                                AppCategoryMedium.MEDIA_ENTERTAINMENT -> "Video / Media"
+                                AppCategoryMedium.PRODUCTIVITY_EDUCATION -> "Productivity"
+                                AppCategoryMedium.GAMING -> "Gaming"
+                                AppCategoryMedium.NEWS -> "News"
+                                AppCategoryMedium.OTHER -> "General"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+
+                    Text(
+                        text = "${appStat.totalMinutes}m",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
     }

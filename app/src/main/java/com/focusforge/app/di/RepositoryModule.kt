@@ -33,4 +33,10 @@ abstract class RepositoryModule {
     abstract fun bindBlockedAppRepository(
         blockedAppRepositoryImpl: BlockedAppRepositoryImpl
     ): BlockedAppRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindScreenTimeRepository(
+        screenTimeRepositoryImpl: com.focusforge.app.data.repository.ScreenTimeRepositoryImpl
+    ): com.focusforge.app.data.repository.ScreenTimeRepository
 }
