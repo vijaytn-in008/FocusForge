@@ -21,7 +21,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Button
@@ -76,7 +78,7 @@ fun HomeScreen(
                 ) {
                     Column {
                         Text(
-                            text = if (uiState.userName.isNotBlank()) "Hello, ${uiState.userName} 👋" else "FocusForge",
+                            text = if (uiState.userName.isNotBlank()) "Welcome, ${uiState.userName}" else "FocusForge",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
@@ -96,8 +98,8 @@ fun HomeScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.SmartToy,
-                            contentDescription = "ForgeBot Guide",
+                            imageVector = androidx.compose.material.icons.Icons.Default.School,
+                            contentDescription = "Focus Guide",
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(24.dp)
                         )
@@ -106,7 +108,7 @@ fun HomeScreen(
             }
         }
 
-        // Interactive ForgeBot Assistant Card
+        // Interactive Focus Guide Card
         item {
             Card(
                 modifier = Modifier
@@ -131,7 +133,7 @@ fun HomeScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.SmartToy,
+                            imageVector = androidx.compose.material.icons.Icons.Default.School,
                             contentDescription = null,
                             tint = Emerald600,
                             modifier = Modifier.size(22.dp)
@@ -142,16 +144,16 @@ fun HomeScreen(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "ForgeBot • Guide & Study Tips",
+                            text = "Study & Focus Guide",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Text(
                             text = if (uiState.userName.isNotBlank()) {
-                                "Tap to chat with ForgeBot or change your profile name (${uiState.userName})."
+                                "Tap to review Deep Work principles or update your profile name (${uiState.userName})."
                             } else {
-                                "Tap here to meet ForgeBot & take a 1-minute quick tour."
+                                "Tap to learn the core principles of Deep Work and app features."
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -391,17 +393,29 @@ private fun TodaySessionItem(session: Session) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val isDeep = session.type == SessionType.DEEP
                     Surface(
-                        color = if (session.type == SessionType.DEEP) Emerald500.copy(alpha = 0.15f) else Amber500.copy(alpha = 0.15f),
+                        color = if (isDeep) Emerald500.copy(alpha = 0.15f) else Amber500.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(6.dp)
                     ) {
-                        Text(
-                            text = session.type.name,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = if (session.type == SessionType.DEEP) Emerald600 else Amber500
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isDeep) androidx.compose.material.icons.Icons.Default.Psychology else androidx.compose.material.icons.Icons.Default.EditNote,
+                                contentDescription = null,
+                                tint = if (isDeep) Emerald600 else Amber500,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isDeep) "DEEP WORK" else "SHALLOW WORK",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDeep) Emerald600 else Amber500
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(

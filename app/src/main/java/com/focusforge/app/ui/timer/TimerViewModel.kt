@@ -117,29 +117,65 @@ class TimerViewModel @Inject constructor(
         TimerService.stopTimer(context)
 
         if (shouldSavePartial && current.status != TimerStatus.IDLE) {
-            val elapsedSec = current.totalSeconds - current.remainingSeconds
-            val elapsedMin = elapsedSec / 60
-            if (elapsedMin >= 1) {
-                completedSessionDetails = current
-                _formState.value = _formState.value.copy(showRatingDialog = true)
-                return
-            }
+            stopAndSaveSession(context, _formState.value.selectedRating)
+            return
         }
+        completedSessionDetails = null
+        _formState.value = _formState.value.copy(showRatingDialog = false)
         TimerService.resetState()
+    }
+
+    fun stopAndSaveSession(context: Context, rating: Int = 4) {
+        val current = TimerService.timerState.value
+        TimerService.stopTimer(context)
+
+        viewModelScope.launch {
+            val elapsedSec = (current.totalSeconds - current.remainingSeconds)
+            val durationMin = maxOf(1, kotlin.math.ceil(elapsedSec / 60.0).toInt())
+            val startTime = if (current.startTimeMillis > 0) {
+                current.startTimeMillis
+            } else {
+                System.currentTimeMillis() - (durationMin * 60 * 1000L)
+            }
+
+            val session = Session(
+                subject = current.subject.ifBlank { "General Focus" },
+                topic = current.topic,
+                startTime = startTime,
+                durationMin = durationMin,
+                focusRating = rating.coerceIn(1, 5),
+                type = current.sessionType
+            )
+
+            sessionRepository.saveSession(session)
+            completedSessionDetails = null
+            _formState.value = _formState.value.copy(showRatingDialog = false)
+            TimerService.resetState()
+        }
     }
 
     fun saveCompletedSession(rating: Int) {
         viewModelScope.launch {
             val sessionToSave = completedSessionDetails ?: TimerService.timerState.value
-            val elapsedSec = (sessionToSave.totalSeconds - sessionToSave.remainingSeconds).coerceAtLeast(60)
-            val durationMin = (elapsedSec / 60).coerceAtLeast(1)
+            val elapsedSec = sessionToSave.totalSeconds - sessionToSave.remainingSeconds
+            val durationMin = if (sessionToSave.status == TimerStatus.COMPLETED || sessionToSave.remainingSeconds == 0) {
+                maxOf(1, sessionToSave.totalSeconds / 60)
+            } else {
+                maxOf(1, kotlin.math.ceil(elapsedSec / 60.0).toInt())
+            }
+
+            val startTime = if (sessionToSave.startTimeMillis > 0) {
+                sessionToSave.startTimeMillis
+            } else {
+                System.currentTimeMillis() - (durationMin * 60 * 1000L)
+            }
 
             val session = Session(
                 subject = sessionToSave.subject.ifBlank { "General Focus" },
                 topic = sessionToSave.topic,
-                startTime = if (sessionToSave.startTimeMillis > 0) sessionToSave.startTimeMillis else System.currentTimeMillis() - (durationMin * 60 * 1000L),
+                startTime = startTime,
                 durationMin = durationMin,
-                focusRating = rating,
+                focusRating = rating.coerceIn(1, 5),
                 type = sessionToSave.sessionType
             )
 

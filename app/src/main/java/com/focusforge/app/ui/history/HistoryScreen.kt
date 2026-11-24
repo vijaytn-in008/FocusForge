@@ -16,7 +16,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -187,13 +189,24 @@ private fun HistorySessionCard(
                         color = if (isDeep) Emerald500.copy(alpha = 0.15f) else Amber500.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(6.dp)
                     ) {
-                        Text(
-                            text = if (isDeep) "🎯 DEEP" else "📝 SHALLOW",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isDeep) Emerald600 else Amber500
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isDeep) androidx.compose.material.icons.Icons.Default.Psychology else androidx.compose.material.icons.Icons.Default.EditNote,
+                                contentDescription = null,
+                                tint = if (isDeep) Emerald600 else Amber500,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isDeep) "DEEP WORK" else "SHALLOW WORK",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDeep) Emerald600 else Amber500
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(

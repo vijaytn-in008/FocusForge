@@ -238,8 +238,8 @@ class TimerService : Service() {
 
         val completionNotification = NotificationCompat.Builder(this, FocusForgeApp.ALERT_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Session Complete! 🎉")
-            .setContentText("Great job on '${state.subject}'. Tap to rate your focus.")
+            .setContentTitle("Session Complete")
+            .setContentText("Study block finished for '${state.subject}'. Tap to log focus.")
             .setAutoCancel(true)
             .setContentIntent(contentPendingIntent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

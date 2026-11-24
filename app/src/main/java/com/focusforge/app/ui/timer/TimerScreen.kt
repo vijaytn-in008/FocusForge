@@ -22,8 +22,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Stop
@@ -327,15 +330,25 @@ fun TimerScreen(
                                     ),
                                     border = if (isDeep) CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(Emerald500)) else null
                                 ) {
-                                    Column(modifier = Modifier.padding(12.dp)) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.Psychology,
+                                                contentDescription = null,
+                                                tint = if (isDeep) Emerald600 else MaterialTheme.colorScheme.onSurface,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "Deep Work",
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                color = if (isDeep) Emerald600 else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = "🎯 Deep Work",
-                                            fontWeight = FontWeight.Bold,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = if (isDeep) Emerald600 else MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "Zero distraction",
+                                            text = "High cognitive focus",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -352,15 +365,25 @@ fun TimerScreen(
                                     ),
                                     border = if (!isDeep) CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(Amber500)) else null
                                 ) {
-                                    Column(modifier = Modifier.padding(12.dp)) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.EditNote,
+                                                contentDescription = null,
+                                                tint = if (!isDeep) Amber500 else MaterialTheme.colorScheme.onSurface,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "Shallow Work",
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                color = if (!isDeep) Amber500 else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = "📝 Shallow",
-                                            fontWeight = FontWeight.Bold,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = if (!isDeep) Amber500 else MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "Light study/admin",
+                                            text = "Administrative tasks",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -409,15 +432,56 @@ fun TimerScreen(
 
     // Stop Confirmation Dialog
     if (showStopConfirmation) {
+        var earlyRating by remember { androidx.compose.runtime.mutableIntStateOf(4) }
         AlertDialog(
             onDismissRequest = { showStopConfirmation = false },
-            title = { Text("End Session Early?") },
-            text = { Text("Would you like to log the completed minutes or discard this session entirely?") },
+            title = {
+                Text(
+                    text = "End Focus Session Early",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Would you like to save the elapsed study minutes or discard this session?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Rate Focus Quality (1 to 5):",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        (1..5).forEach { star ->
+                            val isFilled = star <= earlyRating
+                            Icon(
+                                imageVector = if (isFilled) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = "Star $star",
+                                tint = Amber500,
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clickable { earlyRating = star }
+                                    .padding(2.dp)
+                            )
+                        }
+                    }
+                }
+            },
             confirmButton = {
                 Button(
                     onClick = {
                         showStopConfirmation = false
-                        viewModel.stopTimer(context, shouldSavePartial = true)
+                        viewModel.stopAndSaveSession(context, rating = earlyRating)
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Emerald600)
                 ) {
@@ -466,11 +530,20 @@ fun FocusRatingDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(
-                text = "Session Completed! 🎉",
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.titleLarge
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    tint = Emerald600,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Session Completed",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge
+                )
+            }
         },
         text = {
             Column(

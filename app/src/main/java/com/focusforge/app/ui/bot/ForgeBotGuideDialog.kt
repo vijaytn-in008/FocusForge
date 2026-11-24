@@ -4,11 +4,7 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,13 +18,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -49,11 +42,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.focusforge.app.ui.theme.Amber500
 import com.focusforge.app.ui.theme.Emerald500
 import com.focusforge.app.ui.theme.Emerald600
 
@@ -92,8 +83,8 @@ fun ForgeBotGuideDialog(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.SmartToy,
-                        contentDescription = "ForgeBot",
+                        imageVector = Icons.Default.School,
+                        contentDescription = "Focus Guide",
                         tint = Emerald600,
                         modifier = Modifier.size(24.dp)
                     )
@@ -101,12 +92,12 @@ fun ForgeBotGuideDialog(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "ForgeBot Assistant",
+                        text = "FocusForge Guide",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Your Private Deep Work Guide",
+                        text = "Deep Work & Architecture Overview",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -121,19 +112,20 @@ fun ForgeBotGuideDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 when (step) {
-                    // STEP 1: Welcome & Name
+                    // STEP 1: Welcome & Profile Name
                     1 -> {
-                        BotChatBubble(
-                            message = "👋 Hello! I'm ForgeBot. Welcome to FocusForge!\n\n" +
-                                    "This app is 100% offline, local-first, and private. No accounts, no cloud sync, and zero trackers.\n\n" +
-                                    "What should I call you?"
+                        GuideContentBubble(
+                            title = "Local-First Architecture",
+                            message = "FocusForge is a private digital sanctuary designed to help students plan deliberate practice blocks and track exam readiness.\n\n" +
+                                    "All session data is persisted exclusively on this device. There are no accounts, no cloud sync, and no third-party telemetry.\n\n" +
+                                    "Please provide a preferred name or title for your dashboard."
                         )
 
                         OutlinedTextField(
                             value = inputName,
                             onValueChange = { inputName = it },
-                            placeholder = { Text("e.g. Alex, Vijay, Sarah") },
-                            label = { Text("Your Name or Nickname") },
+                            placeholder = { Text("Enter your name or title") },
+                            label = { Text("Profile Name") },
                             leadingIcon = {
                                 Icon(Icons.Default.Person, contentDescription = null)
                             },
@@ -145,21 +137,21 @@ fun ForgeBotGuideDialog(
 
                     // STEP 2: The Deep Work Concept
                     2 -> {
-                        BotChatBubble(
-                            message = "Great to meet you, $displayName! 🎯\n\n" +
-                                    "In 'Deep Work', author Cal Newport explains that high focus produces high mastery.\n\n" +
-                                    "• 🎯 DEEP WORK: High cognitive demand (math, coding, intense reading) with zero distractions.\n" +
-                                    "• 📝 SHALLOW WORK: Administrative tasks, emails, organizing.\n\n" +
-                                    "FocusForge tracks your deep-work hours so you can conquer your exams and goals."
+                        GuideContentBubble(
+                            title = "Deep Work vs. Shallow Work",
+                            message = "Based on Cal Newport's research, high-value output requires sustained concentration without distraction.\n\n" +
+                                    "• Deep Work: Cognitively demanding tasks (problem solving, analytical reading, coding) performed with zero distraction.\n\n" +
+                                    "• Shallow Work: Logistical or operational tasks (administrative work, reviewing schedules, organizing notes).\n\n" +
+                                    "FocusForge measures your deep-work ratio to ensure meaningful cognitive effort."
                         )
                     }
 
-                    // STEP 3: Timer & Permissions
+                    // STEP 3: Timer & Notification Permission
                     3 -> {
-                        BotChatBubble(
-                            message = "⏱️ Robust Background Timer\n\n" +
-                                    "When you start a session, our timer keeps ticking accurately even if you lock your screen or switch apps.\n\n" +
-                                    "To see your countdown live in your notification drawer, FocusForge asks for Notification permission."
+                        GuideContentBubble(
+                            title = "Persistent Background Timer",
+                            message = "Focus timers run in a persistent foreground service, ensuring the countdown never desynchronizes or stops when the screen locks or when switching applications.\n\n" +
+                                    "An ongoing notification provides countdown visibility and controls in your notification shade."
                         )
 
                         Card(
@@ -219,12 +211,13 @@ fun ForgeBotGuideDialog(
                         }
                     }
 
-                    // STEP 4: Ready to Forge
+                    // STEP 4: Ready to Start
                     4 -> {
-                        BotChatBubble(
-                            message = "You're all set, $displayName! 🚀\n\n" +
-                                    "Ready to forge your focus? Select a topic, set 25 or 50 minutes, and let's get into flow state.\n\n" +
-                                    "I'll be right on your Home screen if you ever need tips or guidance!"
+                        GuideContentBubble(
+                            title = "Ready for Session Planning",
+                            message = "Your profile is configured, $displayName.\n\n" +
+                                    "To initiate a session, navigate to the Timer tab, select a discipline, define your target duration (e.g., 25 or 50 minutes), and start.\n\n" +
+                                    "You may revisit this guide at any time from the home dashboard."
                         )
                     }
                 }
@@ -250,10 +243,10 @@ fun ForgeBotGuideDialog(
             ) {
                 Text(
                     text = when (step) {
-                        1 -> "Continue ➔"
-                        2 -> "How Timer Works ➔"
-                        3 -> "Next ➔"
-                        else -> "Start My First Session 🎯"
+                        1 -> "Continue"
+                        2 -> "Next: Background Timer"
+                        3 -> "Next"
+                        else -> "Begin Focus Session"
                     }
                 )
             }
@@ -271,7 +264,7 @@ fun ForgeBotGuideDialog(
                         onDismiss()
                     }
                 ) {
-                    Text("Skip Tour")
+                    Text("Skip Guide")
                 }
             }
         }
@@ -279,13 +272,20 @@ fun ForgeBotGuideDialog(
 }
 
 @Composable
-private fun BotChatBubble(message: String) {
+private fun GuideContentBubble(title: String, message: String) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 16.dp),
+        shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodyMedium,
