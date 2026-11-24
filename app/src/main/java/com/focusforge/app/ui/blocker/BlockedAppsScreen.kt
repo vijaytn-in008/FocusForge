@@ -525,6 +525,15 @@ fun ScreenTimeTrendsView(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                     )
+
+                    if (summary.overlapMinutes > 0) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Wall-clock deduplicated. App foregrounds sum to ${TimeUtils.formatMinutesToDuration(summary.appSumMinutes)} due to multitasking overlap.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        )
+                    }
                 }
             }
         }

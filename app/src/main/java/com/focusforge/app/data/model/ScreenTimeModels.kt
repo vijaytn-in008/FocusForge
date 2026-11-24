@@ -34,10 +34,17 @@ data class CategoryUsageStat(
 
 data class DailyScreenTimeSummary(
     val totalScreenTimeMillis: Long,
+    val appSumMillis: Long = 0L,
     val appUsageList: List<AppUsageStat>,
     val categoryBreakdown: List<CategoryUsageStat>,
     val topApp: AppUsageStat?
 ) {
     val totalScreenTimeMinutes: Int
         get() = (totalScreenTimeMillis / (1000 * 60)).toInt()
+
+    val appSumMinutes: Int
+        get() = (appSumMillis / (1000 * 60)).toInt()
+
+    val overlapMinutes: Int
+        get() = (appSumMinutes - totalScreenTimeMinutes).coerceAtLeast(0)
 }

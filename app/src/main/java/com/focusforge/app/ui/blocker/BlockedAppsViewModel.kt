@@ -48,7 +48,7 @@ data class BlockerUiState(
     val attempts: List<com.focusforge.app.data.local.entity.BlockedAppAttemptEntity> = emptyList(),
     val attemptsGrouped: List<com.focusforge.app.data.local.dao.AppAttemptCount> = emptyList(),
     val totalAttemptsCount: Int = 0,
-    val screenTimeSummary: DailyScreenTimeSummary = DailyScreenTimeSummary(0L, emptyList(), emptyList(), null),
+    val screenTimeSummary: DailyScreenTimeSummary = DailyScreenTimeSummary(0L, 0L, emptyList(), emptyList(), null),
     val isLoadingScreenTime: Boolean = false
 ) {
     val needsPermissions: Boolean
