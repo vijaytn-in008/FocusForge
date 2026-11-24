@@ -36,12 +36,17 @@ data class BlockerUiState(
     val isBlockerRunning: Boolean = false,
     val isBypassActive: Boolean = false,
     val bypassRemainingSeconds: Int = 0,
+    val hasUsageAccess: Boolean = true,
+    val hasOverlayAccess: Boolean = true,
     val apps: List<SelectableApp> = emptyList(),
     val filteredApps: List<SelectableApp> = emptyList(),
     val searchQuery: String = "",
     val isLoadingApps: Boolean = true,
     val bypassLogs: List<EmergencyBypassLogEntity> = emptyList()
-)
+) {
+    val needsPermissions: Boolean
+        get() = !hasUsageAccess || !hasOverlayAccess
+}
 
 @HiltViewModel
 class BlockedAppsViewModel @Inject constructor(
@@ -54,10 +59,36 @@ class BlockedAppsViewModel @Inject constructor(
     val uiState: StateFlow<BlockerUiState> = _uiState.asStateFlow()
 
     init {
+        checkPermissions()
         loadInstalledApps()
         observeBlockedApps()
         observeBypassLogs()
         observeBlockerServiceState()
+    }
+
+    fun checkPermissions() {
+        val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as? android.app.AppOpsManager
+        val mode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            appOps?.unsafeCheckOpNoThrow(
+                android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(),
+                context.packageName
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            appOps?.checkOpNoThrow(
+                android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(),
+                context.packageName
+            )
+        }
+        val hasUsage = mode == android.app.AppOpsManager.MODE_ALLOWED
+        val hasOverlay = android.provider.Settings.canDrawOverlays(context)
+
+        _uiState.value = _uiState.value.copy(
+            hasUsageAccess = hasUsage,
+            hasOverlayAccess = hasOverlay
+        )
     }
 
     private fun observeBlockerServiceState() {

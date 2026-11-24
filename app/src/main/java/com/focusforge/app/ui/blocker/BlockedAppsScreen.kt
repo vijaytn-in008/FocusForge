@@ -95,6 +95,7 @@ fun BlockedAppsScreen(
                 isRunning = uiState.isBlockerRunning,
                 isBypassActive = uiState.isBypassActive,
                 bypassRemainingSeconds = uiState.bypassRemainingSeconds,
+                needsPermissions = uiState.needsPermissions,
                 onToggleService = { viewModel.toggleBlockerService() },
                 onNavigateToPermissions = onNavigateToPermissions
             )
@@ -169,6 +170,7 @@ fun BlockerMasterHeader(
     isRunning: Boolean,
     isBypassActive: Boolean,
     bypassRemainingSeconds: Int,
+    needsPermissions: Boolean,
     onToggleService: () -> Unit,
     onNavigateToPermissions: () -> Unit
 ) {
@@ -227,6 +229,50 @@ fun BlockerMasterHeader(
                         { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(SwitchDefaults.IconSize)) }
                     } else null
                 )
+            }
+
+            if (needsPermissions) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Permissions Required",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Text(
+                                text = "Usage Access & Display Over Apps needed for shield to intercept.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = onNavigateToPermissions,
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text("Grant", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
             }
 
             if (isBypassActive) {

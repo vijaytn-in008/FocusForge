@@ -130,29 +130,54 @@ class AppBlockerService : Service() {
     }
 
     /**
-     * Determines current top-most package using UsageStatsManager UsageEvents.
+     * Determines current top-most package using UsageStatsManager.
+     * Tries queryEvents first; if empty, falls back to queryUsageStats sorted by lastTimeUsed.
      */
     private fun getForegroundPackageName(): String? {
         val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
             ?: return null
 
         val endTime = System.currentTimeMillis()
-        val startTime = endTime - 5000L // Query the last 5 seconds
+        val startTime = endTime - 10000L // Query the last 10 seconds
 
-        val events = usageStatsManager.queryEvents(startTime, endTime)
-        val event = UsageEvents.Event()
-        var currentTopPackage: String? = null
+        // Method 1: queryEvents (most precise when available)
+        try {
+            val events = usageStatsManager.queryEvents(startTime, endTime)
+            val event = UsageEvents.Event()
+            var currentTopPackage: String? = null
 
-        while (events.hasNextEvent()) {
-            events.getNextEvent(event)
-            if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED ||
-                event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND
-            ) {
-                currentTopPackage = event.packageName
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
+                    currentTopPackage = event.packageName
+                }
             }
+
+            if (currentTopPackage != null) {
+                return currentTopPackage
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("AppBlockerService", "queryEvents error: ${e.message}")
         }
 
-        return currentTopPackage
+        // Method 2: queryUsageStats fallback
+        try {
+            val stats = usageStatsManager.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY,
+                startTime,
+                endTime
+            )
+            if (!stats.isNullOrEmpty()) {
+                val mostRecent = stats.maxByOrNull { it.lastTimeUsed }
+                if (mostRecent != null && (endTime - mostRecent.lastTimeUsed) < 3000L) {
+                    return mostRecent.packageName
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("AppBlockerService", "queryUsageStats error: ${e.message}")
+        }
+
+        return null
     }
 
     private fun launchBlockedAppOverlay(blockedPackage: String) {
