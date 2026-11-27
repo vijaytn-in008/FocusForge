@@ -1,0 +1,404 @@
+package com.focusforge.app.ui.protection
+
+import android.app.Activity
+import android.content.Intent
+import android.net.VpnService
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.focusforge.app.data.model.BlockResponseMode
+import com.focusforge.app.data.model.PolicyTier
+import com.focusforge.app.data.model.UpstreamResolverProvider
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProtectionScreen(
+    onNavigateBack: () -> Unit,
+    viewModel: ProtectionViewModel
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var showVpnExplanationDialog by remember { mutableStateOf(false) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshPrivateDnsStatus()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val vpnLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            viewModel.toggleVpn()
+        }
+    }
+
+    val onToggleVpnClick = {
+        if (uiState.isVpnRunning || uiState.isDnsProtectionEnabled) {
+            viewModel.toggleVpn()
+        } else {
+            val vpnIntent = VpnService.prepare(context)
+            if (vpnIntent != null) {
+                showVpnExplanationDialog = true
+            } else {
+                viewModel.toggleVpn()
+            }
+        }
+    }
+
+    if (showVpnExplanationDialog) {
+        AlertDialog(
+            onDismissRequest = { showVpnExplanationDialog = false },
+            title = { Text("Local DNS Protection") },
+            text = {
+                Text(
+                    "Local filter only; no traffic leaves your phone through us. " +
+                        "Only DNS lookups are checked on-device against local blocklists."
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showVpnExplanationDialog = false
+                    val vpnIntent = VpnService.prepare(context)
+                    if (vpnIntent != null) vpnLauncher.launch(vpnIntent) else viewModel.toggleVpn()
+                }) {
+                    Text("Continue")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showVpnExplanationDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("DNS Protection") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Master Status Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (uiState.isVpnRunning)
+                        MaterialTheme.colorScheme.primaryContainer
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (uiState.isVpnRunning) Icons.Default.Shield else Icons.Default.Public,
+                        contentDescription = null,
+                        modifier = Modifier.size(30.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (uiState.isVpnRunning) "Focus rules active" else "DNS filter inactive",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${uiState.todayBlockedCount} blocked today • ${uiState.pauseEventsCount} pauses",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Switch(
+                        checked = uiState.isVpnRunning || uiState.isDnsProtectionEnabled,
+                        onCheckedChange = { onToggleVpnClick() },
+                        thumbContent = if (uiState.isVpnRunning) {
+                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        } else null
+                    )
+                }
+            }
+
+            // Fail-open or 5-min pause banner
+            val isPaused = uiState.policySnapshot.isPaused()
+            if (uiState.isFailOpenPaused || isPaused) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isPaused) "Protection paused (5 min)" else "Protection paused: network issue",
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            if (!isPaused && uiState.failOpenReason != null) {
+                                Text(
+                                    text = uiState.failOpenReason!!,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                        OutlinedButton(onClick = { viewModel.resumeNow() }) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Restart")
+                        }
+                    }
+                }
+            } else if (uiState.isVpnRunning) {
+                OutlinedButton(
+                    onClick = { viewModel.pauseFor5Minutes() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Pause, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Pause protection for 5 minutes")
+                }
+            }
+
+            // Private DNS strict mode warning
+            if (uiState.isPrivateDnsStrict) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Private DNS strict mode active",
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Text(
+                                text = "Custom Private DNS hostname bypasses local VPN filtering. Switch to Automatic or Off.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                        OutlinedButton(onClick = {
+                            try {
+                                context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS))
+                            } catch (_: Exception) {}
+                        }) {
+                            Text("Settings")
+                        }
+                    }
+                }
+            }
+
+            // Filter Tiers
+            Text("Filter Tiers", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            TierToggleRow(
+                title = "Adult Core (Baseline)",
+                subtitle = "High-confidence adult domain filter (ON by default).",
+                checked = uiState.tierPreferences[PolicyTier.ADULT_CORE] != false,
+                onToggle = { viewModel.toggleTier(PolicyTier.ADULT_CORE) }
+            )
+            TierToggleRow(
+                title = "Adult Extended (Aggressive)",
+                subtitle = "Broader adult list (OFF by default; higher false-positive risk).",
+                checked = uiState.tierPreferences[PolicyTier.ADULT_EXTENDED] == true,
+                onToggle = { viewModel.toggleTier(PolicyTier.ADULT_EXTENDED) }
+            )
+            TierToggleRow(
+                title = "Distraction Domains (STRICT profile only)",
+                subtitle = "Applies only when Shield profile is set to STRICT.",
+                checked = uiState.tierPreferences[PolicyTier.DISTRACTION] == true,
+                onToggle = { viewModel.toggleTier(PolicyTier.DISTRACTION) }
+            )
+            TierToggleRow(
+                title = "DoH Bypass Guard",
+                subtitle = "Blocks public DoH endpoints so browsers use local DNS (hard-coded IP DoH not covered).",
+                checked = uiState.tierPreferences[PolicyTier.DOH_ENDPOINTS] != false,
+                onToggle = { viewModel.toggleTier(PolicyTier.DOH_ENDPOINTS) }
+            )
+
+            // Upstream Resolver
+            Text("Upstream DNS Resolver", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                UpstreamResolverProvider.entries.forEach { provider ->
+                    FilterChip(
+                        selected = uiState.upstreamProvider == provider,
+                        onClick = { viewModel.setUpstreamProvider(provider) },
+                        label = { Text(provider.displayName) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // Block Response Mode
+            Text("Blocked Response Mode", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BlockResponseMode.entries.forEach { mode ->
+                    FilterChip(
+                        selected = uiState.blockResponseMode == mode,
+                        onClick = { viewModel.setBlockResponseMode(mode) },
+                        label = { Text(if (mode == BlockResponseMode.NXDOMAIN) "NXDOMAIN" else "0.0.0.0 / ::") }
+                    )
+                }
+            }
+
+            // User Allowlist (Hashed, Distraction/Private only)
+            Text(
+                "User Allowlist (${uiState.policySnapshot.customAllowedDomainHashes.size} rules)",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Stored as hashes only. Allows domains blocked by Distraction or Private rules (does not bypass Adult filters).",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedTextField(
+                value = uiState.allowDomainInput,
+                onValueChange = { viewModel.onAllowDomainInputChanged(it) },
+                placeholder = { Text("youtube.com") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { viewModel.addAllowDomain() }) { Text("Allow") }
+                OutlinedButton(onClick = { viewModel.removeAllowDomain() }) { Text("Remove") }
+            }
+            uiState.allowActionMessage?.let { msg ->
+                Text(msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
+
+            // Test a domain
+            Text("Test a Domain", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = uiState.testDomainInput,
+                    onValueChange = { viewModel.onTestDomainInputChanged(it) },
+                    placeholder = { Text("example.com") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                Button(onClick = { viewModel.testDomain() }) { Text("Test") }
+            }
+            uiState.testDomainResult?.let { res ->
+                Text(
+                    text = "Decision: ${res.decision.name} (${res.reason.name})",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (res.isBlocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun TierToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onToggle: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Switch(checked = checked, onCheckedChange = { onToggle() })
+        }
+    }
+}

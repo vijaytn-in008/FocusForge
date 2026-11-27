@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.focusforge.app.data.repository.UserPreferencesRepository
+import com.focusforge.app.enforcement.DnsVpnService
 import com.focusforge.app.service.AppBlockerService
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -25,8 +26,14 @@ class BootCompletedReceiver : BroadcastReceiver() {
             val prefs = context.getSharedPreferences("focusforge_prefs", Context.MODE_PRIVATE)
             val isBlockerEnabled = prefs.getBoolean("app_blocker_enabled", false)
 
+            val policyPrefs = context.getSharedPreferences("focusforge_policy_prefs", Context.MODE_PRIVATE)
+            val isDnsEnabled = policyPrefs.getBoolean("dns_protection_enabled", false)
+
             if (isBlockerEnabled) {
                 AppBlockerService.start(context)
+            }
+            if (isDnsEnabled) {
+                DnsVpnService.start(context)
             }
         }
     }

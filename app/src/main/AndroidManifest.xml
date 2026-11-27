@@ -32,6 +32,10 @@
     <!-- Battery optimization exemption request -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- Required strictly for VpnService to forward non-blocked DNS queries to upstream resolver -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
         android:name=".FocusForgeApp"
         android:allowBackup="true"
@@ -79,6 +83,20 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Monitors foreground apps to block distractions during deep work" />
+        </service>
+
+        <!-- Local-only DNS VPN Service (API 34+ specialUse FGS) -->
+        <service
+            android:name=".enforcement.DnsVpnService"
+            android:exported="false"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Local on-device DNS filtering for focus rules" />
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
         </service>
 
         <!-- Boot Completed Receiver: restores blocker service on reboot -->

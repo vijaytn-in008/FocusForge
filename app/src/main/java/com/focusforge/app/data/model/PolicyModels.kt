@@ -49,6 +49,28 @@ enum class PolicyTier(val category: BlockCategory, val tier: BlockTier) {
 }
 
 /**
+ * Explicit upstream DNS resolver selection (default = active network's DNS resolvers).
+ */
+enum class UpstreamResolverProvider(
+    val displayName: String,
+    val addresses: List<String>,
+    val bootstrapHostnames: List<String>
+) {
+    SYSTEM_DEFAULT("System Default (Active Network)", emptyList(), emptyList()),
+    CLOUDFLARE("Cloudflare (1.1.1.1)", listOf("1.1.1.1", "2606:4700:4700::1111"), listOf("one.one.one.one", "cloudflare-dns.com")),
+    GOOGLE("Google (8.8.8.8)", listOf("8.8.8.8", "2001:4860:4860::8888"), listOf("dns.google", "dns.google.com")),
+    QUAD9("Quad9 (9.9.9.9)", listOf("9.9.9.9", "2620:fe::fe"), listOf("dns.quad9.net"))
+}
+
+/**
+ * Response type for blocked DNS queries.
+ */
+enum class BlockResponseMode(val displayName: String) {
+    NXDOMAIN("NXDOMAIN (Domain does not exist)"),
+    ZERO_IP("0.0.0.0 / :: (Null route)")
+}
+
+/**
  * Immutable snapshot of all active enforcement rules, exposed by PolicyStore as StateFlow.
  * Enforcement services read ONLY this snapshot and never touch Room or SharedPreferences directly.
  */

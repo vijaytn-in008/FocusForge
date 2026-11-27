@@ -78,6 +78,7 @@ import com.focusforge.app.util.TimeUtils
 @Composable
 fun BlockedAppsScreen(
     onNavigateToPermissions: () -> Unit,
+    onNavigateToProtection: () -> Unit = {},
     viewModel: BlockedAppsViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -102,6 +103,12 @@ fun BlockedAppsScreen(
             TopAppBar(
                 title = { Text("App Shield") },
                 actions = {
+                    IconButton(onClick = onNavigateToProtection) {
+                        Icon(
+                            imageVector = Icons.Default.Public,
+                            contentDescription = "DNS Protection"
+                        )
+                    }
                     IconButton(onClick = onNavigateToPermissions) {
                         Icon(
                             imageVector = Icons.Default.Security,

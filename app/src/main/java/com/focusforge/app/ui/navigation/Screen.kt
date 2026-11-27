@@ -3,10 +3,12 @@ package com.focusforge.app.ui.navigation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -50,6 +52,13 @@ sealed class Screen(
         title = "Permissions",
         selectedIcon = Icons.Filled.Shield,
         unselectedIcon = Icons.Outlined.Shield
+    )
+
+    data object Protection : Screen(
+        route = "protection",
+        title = "DNS Protection",
+        selectedIcon = Icons.Filled.Public,
+        unselectedIcon = Icons.Outlined.Public
     )
 
     companion object {

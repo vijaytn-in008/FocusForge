@@ -47,9 +47,27 @@ class FocusForgeApp : Application() {
                 setShowBadge(false)
             }
 
+            val vpnChannel = NotificationChannel(
+                VPN_CHANNEL_ID,
+                "Focus Rules Guard",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Ongoing notification for local DNS filtering"
+                setShowBadge(false)
+            }
+
+            val vpnAlertChannel = NotificationChannel(
+                VPN_ALERT_CHANNEL_ID,
+                "Protection Status Alerts",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Alerts when DNS protection pauses due to a network issue"
+            }
+
             val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager?.createNotificationChannels(listOf(timerChannel, alertChannel, blockerChannel))
-            notificationManager?.deleteNotificationChannel("focusforge_vpn_channel")
+            notificationManager?.createNotificationChannels(
+                listOf(timerChannel, alertChannel, blockerChannel, vpnChannel, vpnAlertChannel)
+            )
         }
     }
 
@@ -57,5 +75,7 @@ class FocusForgeApp : Application() {
         const val TIMER_CHANNEL_ID = "focusforge_timer_channel"
         const val ALERT_CHANNEL_ID = "focusforge_alert_channel"
         const val BLOCKER_CHANNEL_ID = "focusforge_blocker_channel"
+        const val VPN_CHANNEL_ID = "focusforge_vpn_status_channel"
+        const val VPN_ALERT_CHANNEL_ID = "focusforge_vpn_alert_channel"
     }
 }

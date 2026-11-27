@@ -2,9 +2,12 @@ package com.focusforge.app.data.repository
 
 import android.content.Context
 import com.focusforge.app.data.local.dao.BlockedAppDao
+import com.focusforge.app.data.model.BlockResponseMode
 import com.focusforge.app.data.model.BlockingProfile
 import com.focusforge.app.data.model.PolicySnapshot
 import com.focusforge.app.data.model.PolicyTier
+import com.focusforge.app.data.model.UpstreamResolverProvider
+import com.focusforge.app.enforcement.DomainNormalizer
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,20 +18,39 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * Single source of truth for enforcement policy.
  * Exposes an immutable [PolicySnapshot] as [StateFlow].
+ * Zero readable domain names are ever persisted to disk or logs.
  */
 interface PolicyStore {
     val policySnapshot: StateFlow<PolicySnapshot>
     val tierPreferences: StateFlow<Map<PolicyTier, Boolean>>
+    val upstreamProvider: StateFlow<UpstreamResolverProvider>
+    val blockResponseMode: StateFlow<BlockResponseMode>
+    val excludeOwnAppFromVpn: StateFlow<Boolean>
+    val todayBlockedCount: StateFlow<Int>
+    val pauseEventsCount: StateFlow<Int>
+    val isDnsProtectionEnabled: StateFlow<Boolean>
 
     suspend fun setActiveProfile(profile: BlockingProfile)
     suspend fun setTierEnabled(tier: PolicyTier, enabled: Boolean)
     suspend fun setPauseUntil(pauseUntilMillis: Long?)
+    suspend fun setUpstreamProvider(provider: UpstreamResolverProvider)
+    suspend fun setBlockResponseMode(mode: BlockResponseMode)
+    suspend fun setExcludeOwnAppFromVpn(exclude: Boolean)
+    suspend fun setDnsProtectionEnabled(enabled: Boolean)
+
+    suspend fun addCustomAllowDomain(rawDomain: String): Boolean
+    suspend fun removeCustomAllowDomain(rawDomain: String): Boolean
+    suspend fun clearCustomAllowDomains()
+
+    suspend fun incrementTodayBlockedCount()
+    suspend fun recordPauseEvent()
 }
 
 @Singleton
@@ -42,20 +64,35 @@ class PolicyStoreImpl @Inject constructor(
 
     private val _activeProfile = MutableStateFlow(loadProfile())
     private val _tierPreferences = MutableStateFlow(loadTierPreferences())
+    private val _customAllowedHashes = MutableStateFlow(loadAllowedHashes())
     private val _pauseUntil = MutableStateFlow<Long?>(loadPauseUntil())
+    private val _upstreamProvider = MutableStateFlow(loadUpstreamProvider())
+    private val _blockResponseMode = MutableStateFlow(loadBlockResponseMode())
+    private val _excludeOwnAppFromVpn = MutableStateFlow(prefs.getBoolean(KEY_EXCLUDE_OWN_APP, true))
+    private val _todayBlockedCount = MutableStateFlow(loadTodayBlockedCount())
+    private val _pauseEventsCount = MutableStateFlow(prefs.getInt(KEY_PAUSE_EVENTS_COUNT, 0))
+    private val _isDnsProtectionEnabled = MutableStateFlow(prefs.getBoolean(KEY_DNS_PROTECTION_ENABLED, false))
 
     override val tierPreferences: StateFlow<Map<PolicyTier, Boolean>> = _tierPreferences.asStateFlow()
+    override val upstreamProvider: StateFlow<UpstreamResolverProvider> = _upstreamProvider.asStateFlow()
+    override val blockResponseMode: StateFlow<BlockResponseMode> = _blockResponseMode.asStateFlow()
+    override val excludeOwnAppFromVpn: StateFlow<Boolean> = _excludeOwnAppFromVpn.asStateFlow()
+    override val todayBlockedCount: StateFlow<Int> = _todayBlockedCount.asStateFlow()
+    override val pauseEventsCount: StateFlow<Int> = _pauseEventsCount.asStateFlow()
+    override val isDnsProtectionEnabled: StateFlow<Boolean> = _isDnsProtectionEnabled.asStateFlow()
 
     override val policySnapshot: StateFlow<PolicySnapshot> = combine(
         _activeProfile,
         _tierPreferences,
         blockedAppDao.getBlockedPackageNames(),
+        _customAllowedHashes,
         _pauseUntil
-    ) { profile, tierPrefs, blockedApps, pauseUntil ->
+    ) { profile, tierPrefs, blockedApps, allowedHashes, pauseUntil ->
         deriveSnapshot(
             activeProfile = profile,
             tierPreferences = tierPrefs,
             blockedApps = blockedApps.toSet(),
+            customAllowedDomainHashes = allowedHashes,
             pauseUntil = pauseUntil
         )
     }.stateIn(
@@ -65,6 +102,7 @@ class PolicyStoreImpl @Inject constructor(
             activeProfile = _activeProfile.value,
             tierPreferences = _tierPreferences.value,
             blockedApps = emptySet(),
+            customAllowedDomainHashes = _customAllowedHashes.value,
             pauseUntil = _pauseUntil.value
         )
     )
@@ -90,12 +128,107 @@ class PolicyStoreImpl @Inject constructor(
         _pauseUntil.value = pauseUntilMillis
     }
 
+    override suspend fun setUpstreamProvider(provider: UpstreamResolverProvider) {
+        prefs.edit().putString(KEY_UPSTREAM_PROVIDER, provider.name).apply()
+        _upstreamProvider.value = provider
+    }
+
+    override suspend fun setBlockResponseMode(mode: BlockResponseMode) {
+        prefs.edit().putString(KEY_BLOCK_RESPONSE_MODE, mode.name).apply()
+        _blockResponseMode.value = mode
+    }
+
+    override suspend fun setExcludeOwnAppFromVpn(exclude: Boolean) {
+        prefs.edit().putBoolean(KEY_EXCLUDE_OWN_APP, exclude).apply()
+        _excludeOwnAppFromVpn.value = exclude
+    }
+
+    override suspend fun setDnsProtectionEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_DNS_PROTECTION_ENABLED, enabled).apply()
+        _isDnsProtectionEnabled.value = enabled
+    }
+
+    override suspend fun addCustomAllowDomain(rawDomain: String): Boolean {
+        val hash = DomainNormalizer.normalizeAndHash(rawDomain) ?: return false
+        val updated = _customAllowedHashes.value + hash
+        saveAllowedHashes(updated)
+        _customAllowedHashes.value = updated
+        return true
+    }
+
+    override suspend fun removeCustomAllowDomain(rawDomain: String): Boolean {
+        val hash = DomainNormalizer.normalizeAndHash(rawDomain) ?: return false
+        if (!_customAllowedHashes.value.contains(hash)) return false
+        val updated = _customAllowedHashes.value - hash
+        saveAllowedHashes(updated)
+        _customAllowedHashes.value = updated
+        return true
+    }
+
+    override suspend fun clearCustomAllowDomains() {
+        saveAllowedHashes(emptySet())
+        _customAllowedHashes.value = emptySet()
+    }
+
+    private val counterLock = Any()
+
+    override suspend fun incrementTodayBlockedCount() {
+        synchronized(counterLock) {
+            val todayKey = currentDayKey()
+            val storedDay = prefs.getInt(KEY_BLOCKED_DAY, -1)
+            val current = if (storedDay == todayKey) prefs.getInt(KEY_BLOCKED_COUNT, 0) else 0
+            val next = current + 1
+            prefs.edit()
+                .putInt(KEY_BLOCKED_DAY, todayKey)
+                .putInt(KEY_BLOCKED_COUNT, next)
+                .apply()
+            _todayBlockedCount.value = next
+        }
+    }
+
+    override suspend fun recordPauseEvent() {
+        synchronized(counterLock) {
+            val next = prefs.getInt(KEY_PAUSE_EVENTS_COUNT, 0) + 1
+            prefs.edit().putInt(KEY_PAUSE_EVENTS_COUNT, next).apply()
+            _pauseEventsCount.value = next
+        }
+    }
+
+    private fun loadTodayBlockedCount(): Int {
+        val todayKey = currentDayKey()
+        val storedDay = prefs.getInt(KEY_BLOCKED_DAY, -1)
+        return if (storedDay == todayKey) prefs.getInt(KEY_BLOCKED_COUNT, 0) else 0
+    }
+
+    private fun currentDayKey(): Int {
+        val cal = Calendar.getInstance()
+        return cal.get(Calendar.YEAR) * 1000 + cal.get(Calendar.DAY_OF_YEAR)
+    }
+
     private fun loadProfile(): BlockingProfile {
         val raw = prefs.getString(KEY_ACTIVE_PROFILE, BlockingProfile.OFF.name)
         return try {
             BlockingProfile.valueOf(raw ?: BlockingProfile.OFF.name)
         } catch (_: Exception) {
             BlockingProfile.OFF
+        }
+    }
+
+    private fun loadUpstreamProvider(): UpstreamResolverProvider {
+        val raw = prefs.getString(KEY_UPSTREAM_PROVIDER, UpstreamResolverProvider.SYSTEM_DEFAULT.name)
+        return try {
+            UpstreamResolverProvider.valueOf(raw ?: UpstreamResolverProvider.SYSTEM_DEFAULT.name)
+        } catch (_: Exception) {
+            UpstreamResolverProvider.SYSTEM_DEFAULT
+        }
+    }
+
+    private fun loadBlockResponseMode(): BlockResponseMode {
+        val raw = prefs.getString(KEY_BLOCK_RESPONSE_MODE, BlockResponseMode.NXDOMAIN.name)
+        return try {
+            BlockResponseMode.valueOf(raw ?: BlockResponseMode.NXDOMAIN.name)
+        } catch (_: Exception) {
+            BlockResponseMode.NXDOMAIN
         }
     }
 
@@ -111,6 +244,17 @@ class PolicyStoreImpl @Inject constructor(
         }
     }
 
+    private fun loadAllowedHashes(): Set<Long> {
+        val raw = prefs.getStringSet(KEY_ALLOWED_HASHES, emptySet()) ?: emptySet()
+        return raw.mapNotNull { it.toLongOrNull(16) }.toSet()
+    }
+
+    private fun saveAllowedHashes(hashes: Set<Long>) {
+        prefs.edit()
+            .putStringSet(KEY_ALLOWED_HASHES, hashes.map { java.lang.Long.toHexString(it) }.toSet())
+            .apply()
+    }
+
     private fun loadPauseUntil(): Long? {
         if (!prefs.contains(KEY_PAUSE_UNTIL)) return null
         val value = prefs.getLong(KEY_PAUSE_UNTIL, 0L)
@@ -123,18 +267,15 @@ class PolicyStoreImpl @Inject constructor(
         private const val PREFS_NAME = "focusforge_policy_prefs"
         private const val KEY_ACTIVE_PROFILE = "active_profile"
         private const val KEY_PAUSE_UNTIL = "pause_until"
+        private const val KEY_UPSTREAM_PROVIDER = "upstream_provider"
+        private const val KEY_BLOCK_RESPONSE_MODE = "block_response_mode"
+        private const val KEY_EXCLUDE_OWN_APP = "exclude_own_app_from_vpn"
+        private const val KEY_ALLOWED_HASHES = "custom_allowed_hashes"
+        private const val KEY_BLOCKED_DAY = "blocked_day_key"
+        private const val KEY_BLOCKED_COUNT = "blocked_today_count"
+        private const val KEY_PAUSE_EVENTS_COUNT = "pause_events_count"
+        private const val KEY_DNS_PROTECTION_ENABLED = "dns_protection_enabled"
 
-        /**
-         * Pure snapshot derivation function implementing the Profile-to-Category Table.
-         *
-         * Profile-to-Category rules:
-         * - ADULT_CORE: enabled if user preference is true (default true).
-         * - ADULT_EXTENDED: enabled if user preference is true (default false).
-         * - DOH_ENDPOINTS: enabled if user preference is true (default true).
-         * - DISTRACTION: enabled ONLY when [activeProfile] is [BlockingProfile.STRICT]
-         *   AND user preference for DISTRACTION is true (default false).
-         *   Never enabled as a domain-wide default under OFF or RELAXED.
-         */
         fun deriveSnapshot(
             activeProfile: BlockingProfile,
             tierPreferences: Map<PolicyTier, Boolean>,
