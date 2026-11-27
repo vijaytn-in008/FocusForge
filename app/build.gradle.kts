@@ -23,11 +23,33 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("FOCUSFORGE_KEYSTORE_PATH")
+                ?: project.findProperty("FOCUSFORGE_KEYSTORE_PATH") as? String
+            if (!keystorePath.isNullOrBlank() && file(keystorePath).exists()) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("FOCUSFORGE_KEYSTORE_PASSWORD")
+                    ?: project.findProperty("FOCUSFORGE_KEYSTORE_PASSWORD") as? String
+                keyAlias = System.getenv("FOCUSFORGE_KEY_ALIAS")
+                    ?: project.findProperty("FOCUSFORGE_KEY_ALIAS") as? String
+                keyPassword = System.getenv("FOCUSFORGE_KEY_PASSWORD")
+                    ?: project.findProperty("FOCUSFORGE_KEY_PASSWORD") as? String
+            } else {
+                val debugCfg = signingConfigs.getByName("debug")
+                storeFile = debugCfg.storeFile
+                storePassword = debugCfg.storePassword
+                keyAlias = debugCfg.keyAlias
+                keyPassword = debugCfg.keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
             isDebuggable = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

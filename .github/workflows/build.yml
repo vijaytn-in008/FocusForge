@@ -1,14 +1,15 @@
-name: Build FocusForge Debug APK
+name: Build & Test FocusForge
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "phase3-rewrite" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Assemble Debug APK
+    name: Test, Build APK & AAB
     runs-on: ubuntu-latest
 
     steps:
@@ -22,13 +23,16 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android Build Tools and Platform
+      - name: Verify Pre-installed Android SDK & Install Platform 34
         run: |
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER=$(find "$SDK_ROOT/cmdline-tools" -name sdkmanager -type f 2>/dev/null | head -n 1)
+          fi
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew || true
@@ -36,11 +40,26 @@ jobs:
       - name: Verify Blocklist False-Positive Guard & Integrity
         run: python3 tools/verify_blocklists.py
 
-      - name: Run Unit Tests & Build Debug APK
-        run: ./gradlew testDebugUnitTest assembleDebug --stacktrace
+      - name: Decode Release Keystore (if configured)
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > app/release-keystore.jks
+          echo "FOCUSFORGE_KEYSTORE_PATH=$GITHUB_WORKSPACE/app/release-keystore.jks" >> "$GITHUB_ENV"
 
-      - name: Upload Debug APK
+      - name: Run Unit Tests & Build Debug/Release APKs + AAB
+        env:
+          FOCUSFORGE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          FOCUSFORGE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          FOCUSFORGE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew testDebugUnitTest assembleDebug assembleRelease bundleRelease --stacktrace
+
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: FocusForge-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: FocusForge-release-artifacts
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/bundle/release/app-release.aab
