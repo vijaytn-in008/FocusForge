@@ -1,16 +1,21 @@
 # FocusForge Blocklist Sources
 
-The blocklists used in FocusForge are curated from verified GPLv3-compatible and permissive open-source repositories, stripped of comments, normalized, and compiled into compact binary search files.
+All blocklists and corpora bundled with FocusForge are verified for GPLv3-compatible redistribution, normalized (lowercase, trailing-dot stripped, IDN Punycode), filtered against the Mozilla Public Suffix List, shared-hosting/CDN parents, and the Tranco Top-10K false-positive guard, and compiled into sorted 64-bit FNV-1a binary files.
 
-| Category | Source | Upstream URL | License | Binary File |
-|---|---|---|---|---|
-| **ADULT** | Curated seed + StevenBlack hosts extension | https://github.com/StevenBlack/hosts | MIT | `assets/blocklists/adult.bin` |
-| **DISTRACTION** | Curated short-video, social media, & streaming | FocusForge curated set | GPLv3 / MIT | `assets/blocklists/distraction.bin` |
-| **DOH_ENDPOINTS** | Public DNS-over-HTTPS resolvers list | https://github.com/curl/curl/wiki/DNS-over-HTTPS | Public Domain / MIT | `assets/blocklists/doh_endpoints.bin` |
+| Tier / Asset | Source | Upstream URL | License | Version / Date | Entries | Measured FP Rate (Tranco 10K) |
+|---|---|---|---|---|---:|---:|
+| `ADULT_CORE` (`adult_core.bin`) | StevenBlack/hosts (porn alternate, FP-filtered) | https://github.com/StevenBlack/hosts | MIT | 2026-11-27 | 143,681 | 0.0000% |
+| `ADULT_EXTENDED` (`adult_extended.bin`) | StevenBlack/hosts (porn alternate, broader) | https://github.com/StevenBlack/hosts | MIT | 2026-11-27 | 157,239 | 0.0000% |
+| `DISTRACTION` (`distraction.bin`) | FocusForge curated distraction domains (STRICT profile only) | https://github.com/vijay/FocusForge | GPLv3 | 2026-11-27 | 48 | N/A (opt-in profile) |
+| `DOH_ENDPOINTS` (`doh_endpoints.bin`) | Public DNS-over-HTTPS resolvers (curl wiki) | https://github.com/curl/curl/wiki/DNS-over-HTTPS | Public Domain / MIT | 2026-11-27 | 24 | N/A (DoH bypass guard) |
+| `public_suffix_hashes.bin` | Mozilla Public Suffix List + shared hosting parents | https://publicsuffix.org/list/public_suffix_list.dat | MPL 2.0 | 2026-11-27 | 10,515 | N/A (safety guard) |
+
+## False-Positive Guard Corpus
+- **Tranco Top-10K**: https://tranco-list.eu/ (CC BY 4.0, fetched 2026-11-27, 10,000 popular domains)
+- **Filtered out of `ADULT_CORE`**: 14281 domains overlapping Tranco non-adult top-10k; 12 public suffixes / OS & CDN parents rejected completely.
 
 ## Binary Format Specification
-Each `.bin` file is a packed array of 64-bit unsigned integers (big-endian):
-- **Hash function**: FNV-1a 64-bit (`offset_basis = 0xcbf29ce484222325`, `prime = 0x100000001b3`)
-- **Ordering**: Ascending binary order
-- **Search complexity**: $O(\log_2 N)$ via `java.nio.LongBuffer` binary search over memory-mapped file
-- **RAM footprint**: Zero heap allocations. Handled directly by kernel page cache.
+Each `.bin` file is a headerless packed array of big-endian 64-bit unsigned integers (`uint64`):
+- **Hash function**: FNV-1a 64-bit (`offset_basis = 0xcbf29ce484222325`, `prime = 0x100000001b3`) over Punycode ASCII normalized domains
+- **Ordering**: Ascending unsigned 64-bit order for $O(\log_2 N)$ memory-mapped binary search
+- **Integrity**: Verified via SHA-256 checksums in `assets/blocklists/manifest.json`

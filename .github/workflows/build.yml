@@ -33,8 +33,11 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew || true
 
-      - name: Build with Gradle
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Verify Blocklist False-Positive Guard & Integrity
+        run: python3 tools/verify_blocklists.py
+
+      - name: Run Unit Tests & Build Debug APK
+        run: ./gradlew testDebugUnitTest assembleDebug --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4

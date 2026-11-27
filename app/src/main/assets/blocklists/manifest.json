@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "generatedAt": "2026-11-27",
+  "assets": {
+    "adult_core.bin": {
+      "count": 143681,
+      "sizeBytes": 1149448,
+      "sha256": "2d6ed46344e91f2011901142f8f2f967950dd6677d6db49146e886ea86fad494"
+    },
+    "adult_extended.bin": {
+      "count": 157239,
+      "sizeBytes": 1257912,
+      "sha256": "a325b38daf913084ab5f935fc746ec955b1a3c12af156b7c85248c655782bbf2"
+    },
+    "distraction.bin": {
+      "count": 48,
+      "sizeBytes": 384,
+      "sha256": "0679fce777c3f05ee3936e75f0a951f972d62da5fcc9cf0c63bd07c32bbb2fee"
+    },
+    "doh_endpoints.bin": {
+      "count": 24,
+      "sizeBytes": 192,
+      "sha256": "9b33e7adab96036502637055c563c2e2c626663a3f379efd653a3ba10f8a5e99"
+    },
+    "public_suffix_hashes.bin": {
+      "count": 10515,
+      "sizeBytes": 84120,
+      "sha256": "c5eff0851959d8b2a7fa96aa46e80ca527298ff601a19bd7ad0a38ea2ac35e02"
+    }
+  }
+}
