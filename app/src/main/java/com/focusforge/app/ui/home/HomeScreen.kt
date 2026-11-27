@@ -44,6 +44,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -67,6 +70,7 @@ import com.focusforge.app.util.TimeUtils
 fun HomeScreen(
     onNavigateToTimer: () -> Unit,
     onNavigateToShield: () -> Unit,
+    onNavigateToProtection: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -129,67 +133,94 @@ fun HomeScreen(
             }
         }
 
-        // Blocker Shield Status Card
+        // Quick Protection Row: App Shield & DNS Filter
         item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onNavigateToShield() },
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (uiState.isBlockerActive)
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                    else
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(
+                Card(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .weight(1f)
+                        .clickable { onNavigateToShield() },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (uiState.isBlockerActive)
+                            Emerald500.copy(alpha = 0.14f)
+                        else
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    )
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (uiState.isBlockerActive) Emerald500.copy(alpha = 0.2f)
-                                else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (uiState.isBlockerActive) Icons.Default.Shield else Icons.Default.Block,
-                            contentDescription = null,
-                            tint = if (uiState.isBlockerActive) Emerald600 else MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        val isAnyActive = uiState.isBlockerActive || uiState.isDnsRunning
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (uiState.isBlockerActive) Icons.Default.Shield else Icons.Default.Block,
+                                contentDescription = null,
+                                tint = if (uiState.isBlockerActive) Emerald600 else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "APP SHIELD",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (uiState.isBlockerActive) Emerald600 else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = if (isAnyActive) "Shield: ${uiState.activeProfile.name}" else "Protection Inactive",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            text = if (uiState.isBlockerActive) uiState.activeProfile.name else "OFF",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "${uiState.blockedAppCount} apps • DNS ${if (uiState.isDnsRunning) "ON (${uiState.todayBlockedSitesCount} blocked)" else "OFF"}",
+                            text = "${uiState.blockedAppCount} guarded apps",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                }
 
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "Open Shield",
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onNavigateToProtection() },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (uiState.isDnsRunning)
+                            Emerald500.copy(alpha = 0.14f)
+                        else
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                     )
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Public,
+                                contentDescription = null,
+                                tint = if (uiState.isDnsRunning) Emerald600 else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "DNS FILTER",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (uiState.isDnsRunning) Emerald600 else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (uiState.isDnsRunning) "Active" else "Inactive",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${uiState.todayBlockedSitesCount} blocked today",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -300,84 +331,67 @@ fun HomeScreen(
             }
         }
 
-        // Past 7 Days Focus & Today's Screen Time Summary Row
+        // Interactive 7-Day Focus Chart + Today's Screen Time
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Card(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Psychology,
-                                contentDescription = null,
-                                tint = Emerald600,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "PAST 7 DAYS",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Emerald600
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = TimeUtils.formatMinutesToDuration(uiState.past7DaysTotalMinutes),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "${TimeUtils.formatMinutesToDuration(uiState.past7DaysDeepMinutes)} deep • ${uiState.past7DaysSessionCount} sessions",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+            SevenDayFocusChartCard(
+                days = uiState.dailyFocusHistory,
+                weekTotalMinutes = uiState.past7DaysTotalMinutes,
+                weekDeepMinutes = uiState.past7DaysDeepMinutes
+            )
+        }
 
-                Card(
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToShield() },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .clickable { onNavigateToShield() },
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.PhoneAndroid,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(20.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
                             Text(
-                                text = "SCREEN TIME",
-                                style = MaterialTheme.typography.labelSmall,
+                                text = "Today's Screen Time",
+                                style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
                             )
+                            Text(
+                                text = uiState.topScreenTimeAppName?.let { "Most used: $it" } ?: "Tap to view app breakdown",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = TimeUtils.formatMinutesToDuration(uiState.todayScreenTimeMinutes),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = uiState.topScreenTimeAppName?.let { "Top: $it" } ?: "Tap Shield for details",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
+                    Text(
+                        text = TimeUtils.formatMinutesToDuration(uiState.todayScreenTimeMinutes),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
         }
@@ -484,6 +498,162 @@ fun HomeScreen(
             onDismiss = viewModel::dismissBotGuide,
             onNavigateToTimer = onNavigateToTimer
         )
+    }
+}
+
+@Composable
+private fun SevenDayFocusChartCard(
+    days: List<DailyFocusStat>,
+    weekTotalMinutes: Int,
+    weekDeepMinutes: Int
+) {
+    if (days.isEmpty()) return
+    var selectedIdx by remember(days.size) { mutableIntStateOf(days.lastIndex) }
+    val selectedDay = days.getOrElse(selectedIdx) { days.last() }
+    val maxMinutes = (days.maxOfOrNull { it.totalMinutes } ?: 0).coerceAtLeast(30)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "7-DAY FOCUS TREND",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Tap any day to inspect",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = TimeUtils.formatMinutesToDuration(weekTotalMinutes),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${TimeUtils.formatMinutesToDuration(weekDeepMinutes)} deep",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Emerald600
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 7 interactive stacked bars
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                days.forEachIndexed { idx, day ->
+                    val isSelected = idx == selectedIdx
+                    val deepRatio = day.deepMinutes.toFloat() / maxMinutes.toFloat()
+                    val shallowRatio = day.shallowMinutes.toFloat() / maxMinutes.toFloat()
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                                else Color.Transparent
+                            )
+                            .clickable { selectedIdx = idx }
+                            .padding(vertical = 6.dp, horizontal = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Bottom
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(18.dp)
+                                .height(78.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.Bottom
+                            ) {
+                                if (day.shallowMinutes > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height((78f * shallowRatio).dp.coerceAtLeast(4.dp))
+                                            .background(Amber500)
+                                    )
+                                }
+                                if (day.deepMinutes > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height((78f * deepRatio).dp.coerceAtLeast(4.dp))
+                                            .background(Emerald500)
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = day.shortLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Selected day detail strip
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "${selectedDay.shortLabel} (${selectedDay.dateLabel})",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${selectedDay.sessionCount} session(s) • ${TimeUtils.formatMinutesToDuration(selectedDay.deepMinutes)} deep, ${TimeUtils.formatMinutesToDuration(selectedDay.shallowMinutes)} shallow",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text = TimeUtils.formatMinutesToDuration(selectedDay.totalMinutes),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Emerald600
+                    )
+                }
+            }
+        }
     }
 }
 

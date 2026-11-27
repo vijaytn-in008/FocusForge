@@ -44,6 +44,9 @@ fun NavGraph(
                         launchSingleTop = true
                         restoreState = true
                     }
+                },
+                onNavigateToProtection = {
+                    navController.navigate(Screen.Protection.route)
                 }
             )
         }

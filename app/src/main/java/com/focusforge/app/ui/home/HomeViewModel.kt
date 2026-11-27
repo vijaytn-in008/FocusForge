@@ -19,8 +19,22 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
+
+data class DailyFocusStat(
+    val dayIndexFromOldest: Int,
+    val shortLabel: String,
+    val dateLabel: String,
+    val deepMinutes: Int,
+    val shallowMinutes: Int,
+    val sessionCount: Int
+) {
+    val totalMinutes: Int get() = deepMinutes + shallowMinutes
+}
 
 data class HomeUiState(
     val userName: String = "",
@@ -32,6 +46,7 @@ data class HomeUiState(
     val past7DaysTotalMinutes: Int = 0,
     val past7DaysDeepMinutes: Int = 0,
     val past7DaysSessionCount: Int = 0,
+    val dailyFocusHistory: List<DailyFocusStat> = emptyList(),
     val todayScreenTimeMinutes: Int = 0,
     val topScreenTimeAppName: String? = null,
     val isBlockerActive: Boolean = false,
@@ -117,6 +132,7 @@ class HomeViewModel @Inject constructor(
         val showGuide = isManual ?: (!onboardingCompleted)
         val weekTotal = sess.weekSessions.sumOf { it.durationMin }
         val weekDeep = sess.weekSessions.filter { it.type == SessionType.DEEP }.sumOf { it.durationMin }
+        val dailyHistory = build7DayStats(sess.weekSessions)
 
         HomeUiState(
             userName = userName,
@@ -128,6 +144,7 @@ class HomeViewModel @Inject constructor(
             past7DaysTotalMinutes = weekTotal,
             past7DaysDeepMinutes = weekDeep,
             past7DaysSessionCount = sess.weekSessions.size,
+            dailyFocusHistory = dailyHistory,
             todayScreenTimeMinutes = prot.screenTimeMin,
             topScreenTimeAppName = prot.topAppName,
             isBlockerActive = isBlockerRunning,
@@ -180,4 +197,48 @@ class HomeViewModel @Inject constructor(
     )
 
     private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
+    companion object {
+        /**
+         * Builds a 7-day breakdown (oldest to Today) from [sessions] without altering any stored data.
+         */
+        fun build7DayStats(
+            sessions: List<Session>,
+            nowMillis: Long = System.currentTimeMillis()
+        ): List<DailyFocusStat> {
+            val dayFmt = SimpleDateFormat("EEE", Locale.getDefault())
+            val dateFmt = SimpleDateFormat("MMM d", Locale.getDefault())
+            val cal = Calendar.getInstance().apply { timeInMillis = nowMillis }
+            cal.set(Calendar.HOUR_OF_DAY, 0)
+            cal.set(Calendar.MINUTE, 0)
+            cal.set(Calendar.SECOND, 0)
+            cal.set(Calendar.MILLISECOND, 0)
+            cal.add(Calendar.DAY_OF_YEAR, -6)
+
+            val stats = mutableListOf<DailyFocusStat>()
+            for (i in 0..6) {
+                val dayStart = cal.timeInMillis
+                cal.add(Calendar.DAY_OF_YEAR, 1)
+                val dayEnd = cal.timeInMillis
+
+                val daySessions = sessions.filter { it.startTime in dayStart until dayEnd }
+                val deep = daySessions.filter { it.type == SessionType.DEEP }.sumOf { it.durationMin }
+                val shallow = daySessions.filter { it.type == SessionType.SHALLOW }.sumOf { it.durationMin }
+                val shortLabel = if (i == 6) "Today" else dayFmt.format(Date(dayStart))
+                val dateLabel = dateFmt.format(Date(dayStart))
+
+                stats.add(
+                    DailyFocusStat(
+                        dayIndexFromOldest = i,
+                        shortLabel = shortLabel,
+                        dateLabel = dateLabel,
+                        deepMinutes = deep,
+                        shallowMinutes = shallow,
+                        sessionCount = daySessions.size
+                    )
+                )
+            }
+            return stats
+        }
+    }
 }
