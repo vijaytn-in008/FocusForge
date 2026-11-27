@@ -56,7 +56,8 @@ interface PolicyStore {
 @Singleton
 class PolicyStoreImpl @Inject constructor(
     @ApplicationContext context: Context,
-    blockedAppDao: BlockedAppDao
+    blockedAppDao: BlockedAppDao,
+    privateListStore: PrivateListStore
 ) : PolicyStore {
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -82,18 +83,26 @@ class PolicyStoreImpl @Inject constructor(
     override val isDnsProtectionEnabled: StateFlow<Boolean> = _isDnsProtectionEnabled.asStateFlow()
 
     override val policySnapshot: StateFlow<PolicySnapshot> = combine(
-        _activeProfile,
-        _tierPreferences,
-        blockedAppDao.getBlockedPackageNames(),
-        _customAllowedHashes,
-        _pauseUntil
-    ) { profile, tierPrefs, blockedApps, allowedHashes, pauseUntil ->
+        combine(
+            _activeProfile,
+            _tierPreferences,
+            blockedAppDao.getBlockedPackageNames(),
+            _customAllowedHashes,
+            _pauseUntil
+        ) { profile, tierPrefs, blockedApps, allowedHashes, pauseUntil ->
+            BasePolicyBundle(profile, tierPrefs, blockedApps.toSet(), allowedHashes, pauseUntil)
+        },
+        privateListStore.privateDomainHashes,
+        privateListStore.privateBlockedApps
+    ) { base, privateDomainHashes, privateApps ->
         deriveSnapshot(
-            activeProfile = profile,
-            tierPreferences = tierPrefs,
-            blockedApps = blockedApps.toSet(),
-            customAllowedDomainHashes = allowedHashes,
-            pauseUntil = pauseUntil
+            activeProfile = base.profile,
+            tierPreferences = base.tierPrefs,
+            blockedApps = base.blockedApps,
+            customAllowedDomainHashes = base.allowedHashes,
+            privateBlockedDomainHashes = privateDomainHashes,
+            privateBlockedApps = privateApps,
+            pauseUntil = base.pauseUntil
         )
     }.stateIn(
         scope = storeScope,
@@ -103,8 +112,18 @@ class PolicyStoreImpl @Inject constructor(
             tierPreferences = _tierPreferences.value,
             blockedApps = emptySet(),
             customAllowedDomainHashes = _customAllowedHashes.value,
+            privateBlockedDomainHashes = privateListStore.privateDomainHashes.value,
+            privateBlockedApps = privateListStore.privateBlockedApps.value,
             pauseUntil = _pauseUntil.value
         )
+    )
+
+    private data class BasePolicyBundle(
+        val profile: BlockingProfile,
+        val tierPrefs: Map<PolicyTier, Boolean>,
+        val blockedApps: Set<String>,
+        val allowedHashes: Set<Long>,
+        val pauseUntil: Long?
     )
 
     override suspend fun setActiveProfile(profile: BlockingProfile) {

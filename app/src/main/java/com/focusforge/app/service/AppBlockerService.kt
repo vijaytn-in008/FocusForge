@@ -142,11 +142,11 @@ class AppBlockerService : Service() {
         }
 
         // 2. Check if the app is blocked in PolicySnapshot
-        val isBlocked = currentPolicy.blockedApps.contains(foregroundPackage) ||
-            currentPolicy.privateBlockedApps.contains(foregroundPackage)
+        val isPrivateBlocked = currentPolicy.privateBlockedApps.contains(foregroundPackage)
+        val isRegularBlocked = currentPolicy.blockedApps.contains(foregroundPackage)
 
-        if (isBlocked) {
-            launchBlockedAppOverlay(foregroundPackage)
+        if (isPrivateBlocked || isRegularBlocked) {
+            launchBlockedAppOverlay(foregroundPackage, isPrivateRule = isPrivateBlocked)
         }
     }
 
@@ -204,10 +204,10 @@ class AppBlockerService : Service() {
     private var lastInterceptedPackage: String? = null
     private var lastInterceptedTime: Long = 0L
 
-    private fun launchBlockedAppOverlay(blockedPackage: String) {
+    private fun launchBlockedAppOverlay(blockedPackage: String, isPrivateRule: Boolean) {
         val now = System.currentTimeMillis()
-        // Deduplicate logs within 3 seconds for the same package
-        if (blockedPackage != lastInterceptedPackage || (now - lastInterceptedTime) > 3000L) {
+        // Never log private app package names or labels to Room or logs
+        if (!isPrivateRule && (blockedPackage != lastInterceptedPackage || (now - lastInterceptedTime) > 3000L)) {
             lastInterceptedPackage = blockedPackage
             lastInterceptedTime = now
 
@@ -227,7 +227,10 @@ class AppBlockerService : Service() {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
                     Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra(BlockedAppActivity.EXTRA_BLOCKED_PACKAGE, blockedPackage)
+            if (!isPrivateRule) {
+                putExtra(BlockedAppActivity.EXTRA_BLOCKED_PACKAGE, blockedPackage)
+            }
+            putExtra(BlockedAppActivity.EXTRA_IS_PRIVATE_RULE, isPrivateRule)
         }
         startActivity(intent)
     }

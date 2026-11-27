@@ -7,6 +7,7 @@ This file records all dependencies, tools, upstream blocklists, and corpora used
 | **AndroidX Core, Lifecycle, Compose** | Android Framework & UI | https://developer.android.com/jetpack | Apache 2.0 | AndroidX BOM / Jetpack | App Runtime |
 | **Room** | Local SQLite persistence | https://developer.android.com/training/data-storage/room | Apache 2.0 | 2.6.1 | App Runtime |
 | **Hilt** | Dependency Injection | https://dagger.dev/hilt/ | Apache 2.0 | 2.51.1 | App Runtime |
+| **AndroidX Biometric** | Biometric & Device Credential Auth | https://developer.android.com/jetpack/androidx/releases/biometric | Apache 2.0 | 1.1.0 | App Runtime |
 | **JUnit** | Unit Testing Framework | https://junit.org/junit4/ | EPL 2.0 | 4.13.2 | Test Only |
 | **StevenBlack/hosts (Porn alternate)** | Adult domain blocklist | https://github.com/StevenBlack/hosts | MIT | 2026-11-27 | `ADULT_CORE` (FP-filtered) & `ADULT_EXTENDED` |
 | **Mozilla Public Suffix List** | Public suffix & shared-hosting guard | https://publicsuffix.org/list/public_suffix_list.dat | MPL 2.0 | 2026-11-27 | `public_suffix_hashes.bin` |

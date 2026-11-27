@@ -198,6 +198,7 @@ def main() -> int:
         "distraction.bin": write_sorted_hash_bin(distraction, os.path.join(ASSETS_DIR, "distraction.bin")),
         "doh_endpoints.bin": write_sorted_hash_bin(doh_endpoints, os.path.join(ASSETS_DIR, "doh_endpoints.bin")),
         "public_suffix_hashes.bin": write_sorted_hash_bin(psl_and_parents, os.path.join(ASSETS_DIR, "public_suffix_hashes.bin")),
+        "popular_domains_hashes.bin": write_sorted_hash_bin(tranco_non_adult, os.path.join(ASSETS_DIR, "popular_domains_hashes.bin")),
     }
 
     today = datetime.date.today().isoformat()

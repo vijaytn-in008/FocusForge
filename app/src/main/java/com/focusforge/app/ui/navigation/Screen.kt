@@ -61,6 +61,13 @@ sealed class Screen(
         unselectedIcon = Icons.Outlined.Public
     )
 
+    data object PrivateList : Screen(
+        route = "private_list",
+        title = "Custom rules",
+        selectedIcon = Icons.Filled.Shield,
+        unselectedIcon = Icons.Outlined.Shield
+    )
+
     companion object {
         val bottomNavScreens = listOf(Home, Timer, Shield, History)
     }

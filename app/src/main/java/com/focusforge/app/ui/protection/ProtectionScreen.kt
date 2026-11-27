@@ -65,6 +65,7 @@ import com.focusforge.app.data.model.UpstreamResolverProvider
 @Composable
 fun ProtectionScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToPrivateList: () -> Unit = {},
     viewModel: ProtectionViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -324,6 +325,14 @@ fun ProtectionScreen(
                         label = { Text(if (mode == BlockResponseMode.NXDOMAIN) "NXDOMAIN" else "0.0.0.0 / ::") }
                     )
                 }
+            }
+
+            // Private / Custom Rules Entry
+            OutlinedButton(
+                onClick = onNavigateToPrivateList,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Custom rules (${uiState.policySnapshot.privateBlockedDomainHashes.size + uiState.policySnapshot.privateBlockedApps.size})")
             }
 
             // User Allowlist (Hashed, Distraction/Private only)

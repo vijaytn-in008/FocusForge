@@ -11,6 +11,8 @@ import com.focusforge.app.ui.blocker.BlockedAppsViewModel
 import com.focusforge.app.ui.history.HistoryScreen
 import com.focusforge.app.ui.home.HomeScreen
 import com.focusforge.app.ui.permissions.PermissionsScreen
+import com.focusforge.app.ui.protection.PrivateListScreen
+import com.focusforge.app.ui.protection.PrivateListViewModel
 import com.focusforge.app.ui.protection.ProtectionScreen
 import com.focusforge.app.ui.protection.ProtectionViewModel
 import com.focusforge.app.ui.timer.TimerScreen
@@ -79,7 +81,20 @@ fun NavGraph(
                 onNavigateBack = {
                     navController.popBackStack()
                 },
+                onNavigateToPrivateList = {
+                    navController.navigate(Screen.PrivateList.route)
+                },
                 viewModel = protectionViewModel
+            )
+        }
+
+        composable(Screen.PrivateList.route) {
+            val privateListViewModel: PrivateListViewModel = hiltViewModel()
+            PrivateListScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                viewModel = privateListViewModel
             )
         }
     }

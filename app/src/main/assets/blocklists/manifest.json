@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "generatedAt": "2026-11-27",
+  "generatedAt": "2026-11-28",
   "assets": {
     "adult_core.bin": {
       "count": 143681,
@@ -26,6 +26,11 @@
       "count": 10515,
       "sizeBytes": 84120,
       "sha256": "c5eff0851959d8b2a7fa96aa46e80ca527298ff601a19bd7ad0a38ea2ac35e02"
+    },
+    "popular_domains_hashes.bin": {
+      "count": 9987,
+      "sizeBytes": 79896,
+      "sha256": "0e7fc0d78de4ad04c0fe1ccfcb2adedc2a4e40bb3ba42574b1a0e32e2fdca77d"
     }
   }
 }

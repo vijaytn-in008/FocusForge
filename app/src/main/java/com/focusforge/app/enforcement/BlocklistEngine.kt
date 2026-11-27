@@ -46,8 +46,18 @@ data class DomainCheckResult(
  */
 class BlocklistLookup(
     private val tierBuffers: Map<PolicyTier, ByteBuffer>,
-    private val publicSuffixBuffer: ByteBuffer? = null
+    private val publicSuffixBuffer: ByteBuffer? = null,
+    private val popularDomainsBuffer: ByteBuffer? = null
 ) {
+
+    fun isPopularDomain(rawDomain: String): Boolean {
+        val normalized = DomainNormalizer.normalize(rawDomain)
+        if (normalized.isEmpty()) return false
+        val candidateHashes = generateCandidateSuffixes(normalized).map { DomainNormalizer.fnv1a64(it) }
+        if (SafetyAllowlist.isSafetyAllowed(candidateHashes)) return true
+        val popBuf = popularDomainsBuffer ?: return false
+        return candidateHashes.any { binarySearchHash(popBuf, it) }
+    }
 
     /**
      * Evaluates [rawDomain] against [snapshot] using the strict decision order:
@@ -251,7 +261,11 @@ class BlocklistEngine @Inject constructor(
             val pslBuffer = pslFile?.let { mapReadOnly(it) }
             if (pslFile == null) allHashesOk = false
 
-            lookup = BlocklistLookup(tierBuffers, pslBuffer)
+            val popSha = assetsObj.optJSONObject("popular_domains_hashes.bin")?.optString("sha256", "") ?: ""
+            val popFile = ensureAssetCopiedAndVerified("popular_domains_hashes.bin", popSha, destDir)
+            val popBuffer = popFile?.let { mapReadOnly(it) }
+
+            lookup = BlocklistLookup(tierBuffers, pslBuffer, popBuffer)
             lastVerifiedOk = allHashesOk
             isInitialized = true
             Log.i(TAG, "BlocklistEngine initialized (${tierBuffers.size} tiers, hashesOk=$allHashesOk)")
@@ -264,6 +278,8 @@ class BlocklistEngine @Inject constructor(
     }
 
     fun areAssetHashesValid(): Boolean = lastVerifiedOk
+
+    fun isPopularDomain(rawDomain: String): Boolean = lookup.isPopularDomain(rawDomain)
 
     fun checkDomain(
         rawDomain: String,

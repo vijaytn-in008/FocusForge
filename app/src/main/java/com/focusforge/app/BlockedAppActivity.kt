@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
@@ -62,7 +63,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
+import com.focusforge.app.data.model.BlockingProfile
 import com.focusforge.app.data.repository.BlockedAppRepository
+import com.focusforge.app.data.repository.PolicyStore
 import com.focusforge.app.service.AppBlockerService
 import com.focusforge.app.service.TimerService
 import com.focusforge.app.service.TimerStatus
@@ -84,11 +87,22 @@ class BlockedAppActivity : ComponentActivity() {
     @Inject
     lateinit var blockedAppRepository: BlockedAppRepository
 
+    @Inject
+    lateinit var policyStore: PolicyStore
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val blockedPackage = intent.getStringExtra(EXTRA_BLOCKED_PACKAGE) ?: ""
+        val isPrivateRule = intent.getBooleanExtra(EXTRA_IS_PRIVATE_RULE, false)
+        if (isPrivateRule) {
+            window.setFlags(
+                WindowManager.LayoutParams.FLAG_SECURE,
+                WindowManager.LayoutParams.FLAG_SECURE
+            )
+        }
+
+        val blockedPackage = if (isPrivateRule) "" else (intent.getStringExtra(EXTRA_BLOCKED_PACKAGE) ?: "")
 
         // Handle back button press: always send user to home launcher
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -98,6 +112,7 @@ class BlockedAppActivity : ComponentActivity() {
         })
 
         setContent {
+            val policy by policyStore.policySnapshot.collectAsState()
             FocusForgeTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -105,9 +120,10 @@ class BlockedAppActivity : ComponentActivity() {
                 ) {
                     BlockedAppContent(
                         packageName = blockedPackage,
+                        isPrivateRule = isPrivateRule,
+                        activeProfile = policy.activeProfile,
                         onGoHome = { sendUserHome() },
                         onEmergencyBypass = {
-                            // Log the bypass to Room and activate 60s temporary unlock
                             lifecycleScopeLaunchBypass()
                         }
                     )
@@ -136,6 +152,7 @@ class BlockedAppActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_BLOCKED_PACKAGE = "extra_blocked_package"
+        const val EXTRA_IS_PRIVATE_RULE = "extra_is_private_rule"
         const val EXTRA_REASON = "extra_reason"
     }
 }
@@ -143,18 +160,20 @@ class BlockedAppActivity : ComponentActivity() {
 @Composable
 fun BlockedAppContent(
     packageName: String,
+    isPrivateRule: Boolean = false,
+    activeProfile: BlockingProfile = BlockingProfile.STRICT,
     onGoHome: () -> Unit,
     onEmergencyBypass: () -> Unit
 ) {
     val context = LocalContext.current
     val timerState by TimerService.timerState.collectAsState()
 
-    // Resolve app details
-    var appName by remember { mutableStateOf(packageName) }
+    // Resolve app details ONLY when not a private rule
+    var appName by remember { mutableStateOf(if (isPrivateRule) "" else packageName) }
     var appIconDrawable by remember { mutableStateOf<Drawable?>(null) }
 
-    LaunchedEffect(packageName) {
-        if (packageName.isNotBlank()) {
+    LaunchedEffect(packageName, isPrivateRule) {
+        if (!isPrivateRule && packageName.isNotBlank()) {
             try {
                 val pm = context.packageManager
                 val appInfo = pm.getApplicationInfo(packageName, 0)
@@ -227,7 +246,7 @@ fun BlockedAppContent(
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Back to Work",
+            text = "Time to Focus",
             style = MaterialTheme.typography.headlineMedium.copy(
                 fontWeight = FontWeight.Bold
             ),
@@ -236,8 +255,18 @@ fun BlockedAppContent(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        val subtitleText = when {
+            isPrivateRule -> "Blocked by your focus rules."
+            timerState.status == TimerStatus.RUNNING || timerState.status == TimerStatus.PAUSED ->
+                "$appName is paused while you work on ${timerState.subject}."
+            activeProfile == BlockingProfile.STRICT ->
+                "$appName is blocked under Strict Focus mode."
+            else ->
+                "$appName is paused under your focus rules."
+        }
+
         Text(
-            text = "$appName is blocked to protect your focus.",
+            text = subtitleText,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center

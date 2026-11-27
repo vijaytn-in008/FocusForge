@@ -155,7 +155,7 @@ class BlocklistEngineTest {
         val manifestText = File(dir, "manifest.json").readText()
         val entryRegex = Regex(""""([^"]+\.bin)"\s*:\s*\{[^}]*"sha256"\s*:\s*"([0-9a-f]{64})"""")
         val matches = entryRegex.findAll(manifestText).toList()
-        assertEquals("Expected 5 binary assets in manifest.json", 5, matches.size)
+        assertEquals("Expected 6 binary assets in manifest.json", 6, matches.size)
         for (m in matches) {
             val name = m.groupValues[1]
             val expectedSha = m.groupValues[2]

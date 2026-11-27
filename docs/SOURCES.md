@@ -4,14 +4,14 @@ All blocklists and corpora bundled with FocusForge are verified for GPLv3-compat
 
 | Tier / Asset | Source | Upstream URL | License | Version / Date | Entries | Measured FP Rate (Tranco 10K) |
 |---|---|---|---|---|---:|---:|
-| `ADULT_CORE` (`adult_core.bin`) | StevenBlack/hosts (porn alternate, FP-filtered) | https://github.com/StevenBlack/hosts | MIT | 2026-11-27 | 143,681 | 0.0000% |
-| `ADULT_EXTENDED` (`adult_extended.bin`) | StevenBlack/hosts (porn alternate, broader) | https://github.com/StevenBlack/hosts | MIT | 2026-11-27 | 157,239 | 0.0000% |
-| `DISTRACTION` (`distraction.bin`) | FocusForge curated distraction domains (STRICT profile only) | https://github.com/vijay/FocusForge | GPLv3 | 2026-11-27 | 48 | N/A (opt-in profile) |
-| `DOH_ENDPOINTS` (`doh_endpoints.bin`) | Public DNS-over-HTTPS resolvers (curl wiki) | https://github.com/curl/curl/wiki/DNS-over-HTTPS | Public Domain / MIT | 2026-11-27 | 24 | N/A (DoH bypass guard) |
-| `public_suffix_hashes.bin` | Mozilla Public Suffix List + shared hosting parents | https://publicsuffix.org/list/public_suffix_list.dat | MPL 2.0 | 2026-11-27 | 10,515 | N/A (safety guard) |
+| `ADULT_CORE` (`adult_core.bin`) | StevenBlack/hosts (porn alternate, FP-filtered) | https://github.com/StevenBlack/hosts | MIT | 2026-11-28 | 143,681 | 0.0000% |
+| `ADULT_EXTENDED` (`adult_extended.bin`) | StevenBlack/hosts (porn alternate, broader) | https://github.com/StevenBlack/hosts | MIT | 2026-11-28 | 157,239 | 0.0000% |
+| `DISTRACTION` (`distraction.bin`) | FocusForge curated distraction domains (STRICT profile only) | https://github.com/vijay/FocusForge | GPLv3 | 2026-11-28 | 48 | N/A (opt-in profile) |
+| `DOH_ENDPOINTS` (`doh_endpoints.bin`) | Public DNS-over-HTTPS resolvers (curl wiki) | https://github.com/curl/curl/wiki/DNS-over-HTTPS | Public Domain / MIT | 2026-11-28 | 24 | N/A (DoH bypass guard) |
+| `public_suffix_hashes.bin` | Mozilla Public Suffix List + shared hosting parents | https://publicsuffix.org/list/public_suffix_list.dat | MPL 2.0 | 2026-11-28 | 10,515 | N/A (safety guard) |
 
 ## False-Positive Guard Corpus
-- **Tranco Top-10K**: https://tranco-list.eu/ (CC BY 4.0, fetched 2026-11-27, 10,000 popular domains)
+- **Tranco Top-10K**: https://tranco-list.eu/ (CC BY 4.0, fetched 2026-11-28, 10,000 popular domains)
 - **Filtered out of `ADULT_CORE`**: 14281 domains overlapping Tranco non-adult top-10k; 12 public suffixes / OS & CDN parents rejected completely.
 
 ## Binary Format Specification
