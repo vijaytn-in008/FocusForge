@@ -51,6 +51,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -61,6 +63,12 @@ import com.focusforge.app.data.model.BlockResponseMode
 import com.focusforge.app.data.model.PolicyTier
 import com.focusforge.app.data.model.UpstreamResolverProvider
 import com.focusforge.app.enforcement.DecisionReason
+import com.focusforge.app.ui.components.ForgeCard
+import com.focusforge.app.ui.components.ForgeGradientCard
+import com.focusforge.app.ui.components.ForgeStatusPill
+import com.focusforge.app.ui.theme.Emerald700
+import com.focusforge.app.ui.theme.Slate850
+import com.focusforge.app.ui.theme.Teal700
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -154,37 +162,51 @@ fun ProtectionScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Master Status Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (uiState.isVpnRunning)
-                        MaterialTheme.colorScheme.primaryContainer
-                    else
-                        MaterialTheme.colorScheme.surfaceVariant
-                )
+            ForgeGradientCard(
+                brush = if (uiState.isVpnRunning) {
+                    Brush.linearGradient(listOf(Emerald700, Teal700, Slate850))
+                } else {
+                    Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.surfaceVariant,
+                            MaterialTheme.colorScheme.surface
+                        )
+                    )
+                },
+                cornerRadius = 20.dp
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = if (uiState.isVpnRunning) Icons.Default.Shield else Icons.Default.Public,
                         contentDescription = null,
+                        tint = if (uiState.isVpnRunning) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(30.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (uiState.isVpnRunning) "Focus rules active" else "DNS filter inactive",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (uiState.isVpnRunning) "Focus rules active" else "DNS filter inactive",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (uiState.isVpnRunning) Color.White else MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            ForgeStatusPill(
+                                label = if (uiState.isVpnRunning) "ON" else "OFF",
+                                active = uiState.isVpnRunning
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "${uiState.todayBlockedCount} blocked today • ${uiState.pauseEventsCount} pauses",
-                            style = MaterialTheme.typography.bodySmall
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (uiState.isVpnRunning) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Switch(
@@ -416,12 +438,13 @@ private fun TierToggleRow(
     checked: Boolean,
     onToggle: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+    ForgeCard(
+        cornerRadius = 16.dp,
+        elevation = 1.dp,
+        onClick = onToggle
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {

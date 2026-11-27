@@ -164,7 +164,8 @@ fun TimerScreen(
                         fontSize = 46.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
-                        letterSpacing = 1.sp
+                        letterSpacing = 1.sp,
+                        style = MaterialTheme.typography.displayLarge.copy(fontFeatureSettings = "tnum")
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))

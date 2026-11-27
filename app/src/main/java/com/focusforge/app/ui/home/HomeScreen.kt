@@ -1,5 +1,11 @@
 package com.focusforge.app.ui.home
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,20 +27,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -47,23 +49,31 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.focusforge.app.data.model.Session
 import com.focusforge.app.data.model.SessionType
 import com.focusforge.app.ui.bot.ForgeBotGuideDialog
+import com.focusforge.app.ui.components.ForgeCard
+import com.focusforge.app.ui.components.ForgeGradientCard
+import com.focusforge.app.ui.components.ForgeStatusPill
 import com.focusforge.app.ui.theme.Amber500
+import com.focusforge.app.ui.theme.Emerald100
 import com.focusforge.app.ui.theme.Emerald500
 import com.focusforge.app.ui.theme.Emerald600
+import com.focusforge.app.ui.theme.Emerald700
+import com.focusforge.app.ui.theme.Slate850
+import com.focusforge.app.ui.theme.Teal700
 import com.focusforge.app.util.TimeUtils
 
 @Composable
@@ -90,86 +100,213 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 20.dp),
-        contentPadding = PaddingValues(top = 28.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        contentPadding = PaddingValues(top = 24.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        // App Header with Personalized Greeting
+        // Header
         item {
-            Column {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column {
+                    Text(
+                        text = if (uiState.userName.isNotBlank()) "Welcome, ${uiState.userName}" else "FocusForge",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "Local-First Digital Sanctuary",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Surface(
+                    onClick = { viewModel.openBotGuide() },
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
                 ) {
-                    Column {
-                        Text(
-                            text = if (uiState.userName.isNotBlank()) "Welcome, ${uiState.userName}" else "FocusForge",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Text(
-                            text = "Local-First Digital Sanctuary",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                     Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer)
-                            .clickable { viewModel.openBotGuide() },
+                        modifier = Modifier.size(44.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.School,
                             contentDescription = "Focus Guide",
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
             }
         }
 
-        // Quick Protection Row: App Shield & DNS Filter
+        // Hero Focus Card with gradient & direct Start CTA
+        item {
+            val animatedRatio by animateFloatAsState(
+                targetValue = uiState.deepWorkRatio,
+                animationSpec = spring(stiffness = Spring.StiffnessLow),
+                label = "heroRatio"
+            )
+
+            ForgeGradientCard(
+                brush = Brush.linearGradient(
+                    colors = listOf(Emerald700, Teal700, Slate850)
+                )
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "TODAY'S FOCUS",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Emerald100,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = Color.White.copy(alpha = 0.14f)
+                        ) {
+                            Text(
+                                text = "${uiState.todaySessions.size} session(s)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        Column {
+                            Text(
+                                text = TimeUtils.formatMinutesToDuration(uiState.todayDeepMinutes),
+                                fontSize = 38.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "Deep work logged today",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = TimeUtils.formatMinutesToDuration(uiState.todayTotalMinutes),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "Total focus",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.72f)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    LinearProgressIndicator(
+                        progress = { animatedRatio },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = Emerald100,
+                        trackColor = Color.White.copy(alpha = 0.18f)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        LegendDotText("Deep: ${TimeUtils.formatMinutesToDuration(uiState.todayDeepMinutes)}", Emerald100, Color.White.copy(alpha = 0.9f))
+                        LegendDotText("Shallow: ${TimeUtils.formatMinutesToDuration(uiState.shallowMinutes)}", Amber500, Color.White.copy(alpha = 0.9f))
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = onNavigateToTimer,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            contentColor = Emerald700
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Start Focus Session",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Quick Protection Cards: App Shield & DNS Filter
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Card(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { onNavigateToShield() },
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (uiState.isBlockerActive)
-                            Emerald500.copy(alpha = 0.14f)
-                        else
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                    )
+                ForgeCard(
+                    modifier = Modifier.weight(1f),
+                    onClick = onNavigateToShield,
+                    borderColor = if (uiState.isBlockerActive) Emerald500.copy(alpha = 0.45f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
                                 imageVector = if (uiState.isBlockerActive) Icons.Default.Shield else Icons.Default.Block,
                                 contentDescription = null,
-                                tint = if (uiState.isBlockerActive) Emerald600 else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
+                                tint = if (uiState.isBlockerActive) Emerald500 else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "APP SHIELD",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (uiState.isBlockerActive) Emerald600 else MaterialTheme.colorScheme.onSurfaceVariant
+                            ForgeStatusPill(
+                                label = if (uiState.isBlockerActive) uiState.activeProfile.name else "OFF",
+                                active = uiState.isBlockerActive
                             )
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = if (uiState.isBlockerActive) uiState.activeProfile.name else "OFF",
+                            text = "App Shield",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -181,37 +318,31 @@ fun HomeScreen(
                     }
                 }
 
-                Card(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { onNavigateToProtection() },
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (uiState.isDnsRunning)
-                            Emerald500.copy(alpha = 0.14f)
-                        else
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                    )
+                ForgeCard(
+                    modifier = Modifier.weight(1f),
+                    onClick = onNavigateToProtection,
+                    borderColor = if (uiState.isDnsRunning) Emerald500.copy(alpha = 0.45f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Public,
                                 contentDescription = null,
-                                tint = if (uiState.isDnsRunning) Emerald600 else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
+                                tint = if (uiState.isDnsRunning) Emerald500 else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "DNS FILTER",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (uiState.isDnsRunning) Emerald600 else MaterialTheme.colorScheme.onSurfaceVariant
+                            ForgeStatusPill(
+                                label = if (uiState.isDnsRunning) "ON" else "OFF",
+                                active = uiState.isDnsRunning
                             )
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = if (uiState.isDnsRunning) "Active" else "Inactive",
+                            text = "DNS Filter",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -225,113 +356,7 @@ fun HomeScreen(
             }
         }
 
-        // Today's Focus Overview Card
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Text(
-                        text = "TODAY'S PROGRESS",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        Column {
-                            Text(
-                                text = TimeUtils.formatMinutesToDuration(uiState.todayDeepMinutes),
-                                fontSize = 36.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Deep Work logged today",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = "${TimeUtils.formatMinutesToDuration(uiState.todayTotalMinutes)} Total",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "${uiState.todaySessions.size} session(s)",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Progress bar for Deep vs Shallow ratio
-                    LinearProgressIndicator(
-                        progress = { uiState.deepWorkRatio },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(10.dp)
-                            .clip(RoundedCornerShape(5.dp)),
-                        color = Emerald500,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .clip(CircleShape)
-                                    .background(Emerald500)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Deep: ${TimeUtils.formatMinutesToDuration(uiState.todayDeepMinutes)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .clip(CircleShape)
-                                    .background(Amber500)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Shallow: ${TimeUtils.formatMinutesToDuration(uiState.shallowMinutes)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Interactive 7-Day Focus Chart + Today's Screen Time
+        // Interactive 7-Day Focus Chart
         item {
             SevenDayFocusChartCard(
                 days = uiState.dailyFocusHistory,
@@ -340,15 +365,9 @@ fun HomeScreen(
             )
         }
 
+        // Today's Screen Time Card
         item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onNavigateToShield() },
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-            ) {
+            ForgeCard(onClick = onNavigateToShield) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -356,11 +375,11 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                         Box(
                             modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
                                 .background(MaterialTheme.colorScheme.primaryContainer),
                             contentAlignment = Alignment.Center
                         ) {
@@ -375,9 +394,8 @@ fun HomeScreen(
                         Column {
                             Text(
                                 text = "Today's Screen Time",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = uiState.topScreenTimeAppName?.let { "Most used: $it" } ?: "Tap to view app breakdown",
@@ -390,42 +408,9 @@ fun HomeScreen(
                         text = TimeUtils.formatMinutesToDuration(uiState.todayScreenTimeMinutes),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
-            }
-        }
-
-        // Call to Action: Start Session
-        item {
-            Button(
-                onClick = onNavigateToTimer,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Emerald600,
-                    contentColor = Color.White
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Timer,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "Start Focus Session",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
             }
         }
 
@@ -452,23 +437,16 @@ fun HomeScreen(
 
         if (uiState.todaySessions.isEmpty()) {
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    )
-                ) {
+                ForgeCard(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(24.dp),
+                            .padding(20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
                             text = "“Deep work is the ability to focus without distraction on a cognitively demanding task.”",
                             style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = 22.sp
                         )
@@ -489,7 +467,6 @@ fun HomeScreen(
         }
     }
 
-    // Interactive Guide Dialog
     if (uiState.showBotGuide) {
         ForgeBotGuideDialog(
             initialUserName = uiState.userName,
@@ -498,6 +475,20 @@ fun HomeScreen(
             onDismiss = viewModel::dismissBotGuide,
             onNavigateToTimer = onNavigateToTimer
         )
+    }
+}
+
+@Composable
+private fun LegendDotText(text: String, dotColor: Color, textColor: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(dotColor)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(text = text, style = MaterialTheme.typography.bodySmall, color = textColor)
     }
 }
 
@@ -512,12 +503,7 @@ private fun SevenDayFocusChartCard(
     val selectedDay = days.getOrElse(selectedIdx) { days.last() }
     val maxMinutes = (days.maxOfOrNull { it.totalMinutes } ?: 0).coerceAtLeast(30)
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
+    ForgeCard {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -532,7 +518,7 @@ private fun SevenDayFocusChartCard(
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "Tap any day to inspect",
+                        text = "Tap any bar to inspect that day",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -546,18 +532,17 @@ private fun SevenDayFocusChartCard(
                     Text(
                         text = "${TimeUtils.formatMinutesToDuration(weekDeepMinutes)} deep",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Emerald600
+                        color = Emerald500
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 7 interactive stacked bars
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(120.dp),
+                    .height(124.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Bottom
             ) {
@@ -565,15 +550,26 @@ private fun SevenDayFocusChartCard(
                     val isSelected = idx == selectedIdx
                     val deepRatio = day.deepMinutes.toFloat() / maxMinutes.toFloat()
                     val shallowRatio = day.shallowMinutes.toFloat() / maxMinutes.toFloat()
+                    val animatedDeepHeight by animateDpAsState(
+                        targetValue = if (day.deepMinutes > 0) (76f * deepRatio).dp.coerceAtLeast(6.dp) else 0.dp,
+                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                        label = "deepBar"
+                    )
+                    val animatedShallowHeight by animateDpAsState(
+                        targetValue = if (day.shallowMinutes > 0) (76f * shallowRatio).dp.coerceAtLeast(6.dp) else 0.dp,
+                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                        label = "shallowBar"
+                    )
+                    val highlightBg by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f) else Color.Transparent,
+                        label = "barHighlight"
+                    )
 
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(
-                                if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                                else Color.Transparent
-                            )
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(highlightBg)
                             .clickable { selectedIdx = idx }
                             .padding(vertical = 6.dp, horizontal = 4.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -581,10 +577,10 @@ private fun SevenDayFocusChartCard(
                     ) {
                         Box(
                             modifier = Modifier
-                                .width(18.dp)
+                                .width(20.dp)
                                 .height(78.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                                .clip(RoundedCornerShape(7.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
                             contentAlignment = Alignment.BottomCenter
                         ) {
                             Column(
@@ -595,7 +591,7 @@ private fun SevenDayFocusChartCard(
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height((78f * shallowRatio).dp.coerceAtLeast(4.dp))
+                                            .height(animatedShallowHeight)
                                             .background(Amber500)
                                     )
                                 }
@@ -603,7 +599,7 @@ private fun SevenDayFocusChartCard(
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height((78f * deepRatio).dp.coerceAtLeast(4.dp))
+                                            .height(animatedDeepHeight)
                                             .background(Emerald500)
                                     )
                                 }
@@ -622,20 +618,20 @@ private fun SevenDayFocusChartCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Selected day detail strip
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
                         Text(
-                            text = "${selectedDay.shortLabel} (${selectedDay.dateLabel})",
+                            text = "${selectedDay.shortLabel} • ${selectedDay.dateLabel}",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -649,7 +645,7 @@ private fun SevenDayFocusChartCard(
                         text = TimeUtils.formatMinutesToDuration(selectedDay.totalMinutes),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Emerald600
+                        color = Emerald500
                     )
                 }
             }
@@ -659,14 +655,7 @@ private fun SevenDayFocusChartCard(
 
 @Composable
 private fun TodaySessionItem(session: Session) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
+    ForgeCard(cornerRadius = 16.dp, elevation = 1.dp) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -704,11 +693,11 @@ private fun TodaySessionItem(session: Session) {
                     Text(
                         text = TimeUtils.formatEpochToTimeOnly(session.startTime),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
                     text = session.subject,
