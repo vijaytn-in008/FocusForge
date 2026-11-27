@@ -2,6 +2,10 @@ package com.focusforge.app.di
 
 import com.focusforge.app.data.repository.BlockedAppRepository
 import com.focusforge.app.data.repository.BlockedAppRepositoryImpl
+import com.focusforge.app.data.repository.PolicyRepository
+import com.focusforge.app.data.repository.PolicyRepositoryImpl
+import com.focusforge.app.data.repository.ScreenTimeRepository
+import com.focusforge.app.data.repository.ScreenTimeRepositoryImpl
 import com.focusforge.app.data.repository.SessionRepository
 import com.focusforge.app.data.repository.SessionRepositoryImpl
 import com.focusforge.app.data.repository.UserPreferencesRepository
@@ -37,6 +41,12 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindScreenTimeRepository(
-        screenTimeRepositoryImpl: com.focusforge.app.data.repository.ScreenTimeRepositoryImpl
-    ): com.focusforge.app.data.repository.ScreenTimeRepository
+        screenTimeRepositoryImpl: ScreenTimeRepositoryImpl
+    ): ScreenTimeRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPolicyRepository(
+        policyRepositoryImpl: PolicyRepositoryImpl
+    ): PolicyRepository
 }

@@ -1,7 +1,6 @@
 package com.focusforge.app.service
 
 import android.app.Notification
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.app.usage.UsageEvents
@@ -15,12 +14,17 @@ import android.os.IBinder
 import android.os.Looper
 import android.provider.Telephony
 import android.telecom.TelecomManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.focusforge.app.BlockedAppActivity
 import com.focusforge.app.FocusForgeApp
 import com.focusforge.app.MainActivity
 import com.focusforge.app.R
+import com.focusforge.app.data.model.BlockingProfile
+import com.focusforge.app.data.model.PolicySnapshot
 import com.focusforge.app.data.repository.BlockedAppRepository
+import com.focusforge.app.data.repository.PolicyRepository
+import com.focusforge.app.enforcement.PollingGate
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,9 +36,10 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Foreground service that regularly polls the currently active foreground application.
- * If the application is in the user's blocked list and emergency bypass is inactive,
- * it immediately fires the full-screen BlockedAppActivity to redirect user to work.
+ * Foreground service that monitors the currently active foreground application.
+ * Follows the Section 1 Polling Gate rule:
+ * Polls ONLY while (screen is ON) AND (profile has app blocking active) AND (blocked set non-empty).
+ * Strictly pauses polling when the screen turns OFF to preserve battery.
  */
 @AndroidEntryPoint
 class AppBlockerService : Service() {
@@ -42,12 +47,15 @@ class AppBlockerService : Service() {
     @Inject
     lateinit var blockedAppRepository: BlockedAppRepository
 
+    @Inject
+    lateinit var policyRepository: PolicyRepository
+
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
     private val handler = Handler(Looper.getMainLooper())
     private var isPolling = false
 
-    // Cache of blocked package names for low-latency lookup in the polling loop
-    private val blockedPackages = HashSet<String>()
+    private lateinit var pollingGate: PollingGate
+    private var currentPolicy = PolicySnapshot()
 
     private val pollRunnable = object : Runnable {
         override fun run() {
@@ -65,17 +73,20 @@ class AppBlockerService : Service() {
         _isServiceRunning.value = true
         startForegroundWithNotification()
 
-        // Collect active blocked apps into our in-memory hash set
+        pollingGate = PollingGate(this) { isInteractive ->
+            Log.d(TAG, "Screen interactive changed: $isInteractive")
+            evaluatePollingState()
+        }
+        pollingGate.startListening()
+
+        // Observe central PolicySnapshot as the single source of truth
         serviceScope.launch {
-            blockedAppRepository.getBlockedPackageNames().collect { list ->
-                synchronized(blockedPackages) {
-                    blockedPackages.clear()
-                    blockedPackages.addAll(list)
-                }
+            policyRepository.policySnapshot.collect { snapshot ->
+                currentPolicy = snapshot
+                Log.d(TAG, "PolicySnapshot updated in AppBlockerService: profile=${snapshot.activeProfile}, blockedApps=${snapshot.blockedAppPackages.size}")
+                evaluatePollingState()
             }
         }
-
-        startPolling()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -89,6 +100,23 @@ class AppBlockerService : Service() {
             }
         }
         return START_STICKY
+    }
+
+    /**
+     * Central polling gate evaluation:
+     * Screen must be interactive AND app blocking must be effective according to PolicySnapshot.
+     */
+    private fun evaluatePollingState() {
+        val isScreenOn = pollingGate.isScreenInteractive()
+        val shouldPoll = isScreenOn && currentPolicy.isAppBlockingEffective
+
+        if (shouldPoll && !isPolling) {
+            Log.i(TAG, "Starting UsageStats polling loop (screen ON & active profile)")
+            startPolling()
+        } else if (!shouldPoll && isPolling) {
+            Log.i(TAG, "Pausing UsageStats polling loop (screen OFF or policy inactive)")
+            stopPolling()
+        }
     }
 
     private fun startPolling() {
@@ -119,10 +147,8 @@ class AppBlockerService : Service() {
             return
         }
 
-        // 2. Check if the app is blocked
-        val isBlocked = synchronized(blockedPackages) {
-            blockedPackages.contains(foregroundPackage)
-        }
+        // 2. Check if the app is blocked according to the active policy
+        val isBlocked = currentPolicy.blockedAppPackages.contains(foregroundPackage)
 
         if (isBlocked) {
             launchBlockedAppOverlay(foregroundPackage)
@@ -131,7 +157,7 @@ class AppBlockerService : Service() {
 
     /**
      * Determines current top-most package using UsageStatsManager.
-     * Tries queryEvents first; if empty, falls back to queryUsageStats sorted by lastTimeUsed.
+     * Prefers queryEvents (most precise and current API standard).
      */
     private fun getForegroundPackageName(): String? {
         val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
@@ -140,7 +166,7 @@ class AppBlockerService : Service() {
         val endTime = System.currentTimeMillis()
         val startTime = endTime - 10000L // Query the last 10 seconds
 
-        // Method 1: queryEvents (most precise when available)
+        // Method 1: queryEvents (preferred)
         try {
             val events = usageStatsManager.queryEvents(startTime, endTime)
             val event = UsageEvents.Event()
@@ -157,7 +183,7 @@ class AppBlockerService : Service() {
                 return currentTopPackage
             }
         } catch (e: Exception) {
-            android.util.Log.w("AppBlockerService", "queryEvents error: ${e.message}")
+            Log.w(TAG, "queryEvents error: ${e.message}")
         }
 
         // Method 2: queryUsageStats fallback
@@ -174,7 +200,7 @@ class AppBlockerService : Service() {
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.w("AppBlockerService", "queryUsageStats error: ${e.message}")
+            Log.w(TAG, "queryUsageStats fallback error: ${e.message}")
         }
 
         return null
@@ -267,7 +293,7 @@ class AppBlockerService : Service() {
                 startForeground(NOTIFICATION_ID, notification)
             }
         } catch (e: Exception) {
-            android.util.Log.e("AppBlockerService", "Failed to start foreground blocker: ${e.message}")
+            Log.e(TAG, "Failed to start foreground blocker: ${e.message}")
         }
     }
 
@@ -302,12 +328,14 @@ class AppBlockerService : Service() {
     }
 
     override fun onDestroy() {
+        pollingGate.stopListening()
         stopPolling()
         _isServiceRunning.value = false
         super.onDestroy()
     }
 
     companion object {
+        private const val TAG = "AppBlockerService"
         const val NOTIFICATION_ID = 2001
         private const val POLL_INTERVAL_MS = 1000L
 

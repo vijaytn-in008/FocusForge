@@ -2,10 +2,13 @@ package com.focusforge.app.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.focusforge.app.data.model.BlockingProfile
 import com.focusforge.app.data.model.Session
 import com.focusforge.app.data.repository.BlockedAppRepository
+import com.focusforge.app.data.repository.PolicyRepository
 import com.focusforge.app.data.repository.SessionRepository
 import com.focusforge.app.data.repository.UserPreferencesRepository
+import com.focusforge.app.enforcement.DnsVpnService
 import com.focusforge.app.service.AppBlockerService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +27,8 @@ data class HomeUiState(
     val todayTotalMinutes: Int = 0,
     val todaySessions: List<Session> = emptyList(),
     val isBlockerActive: Boolean = false,
+    val activeProfile: BlockingProfile = BlockingProfile.OFF,
+    val isDnsActive: Boolean = false,
     val blockedAppCount: Int = 0,
     val isLoading: Boolean = false
 ) {
@@ -41,7 +46,8 @@ data class HomeUiState(
 class HomeViewModel @Inject constructor(
     sessionRepository: SessionRepository,
     blockedAppRepository: BlockedAppRepository,
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val policyRepository: PolicyRepository
 ) : ViewModel() {
 
     private val _manualShowBotGuide = MutableStateFlow<Boolean?>(null)
@@ -59,8 +65,14 @@ class HomeViewModel @Inject constructor(
             blockedAppRepository.getActiveBlockedApps()
         ) { name, onboard, running, blockedList ->
             Quad(name, onboard, running, blockedList.size)
+        },
+        combine(
+            policyRepository.policySnapshot,
+            DnsVpnService.isVpnRunning
+        ) { snapshot, vpnRunning ->
+            Pair(snapshot.activeProfile, vpnRunning)
         }
-    ) { (deepMin, totalMin, sessions), (userName, onboardingCompleted, isBlockerRunning, blockedCount) ->
+    ) { (deepMin, totalMin, sessions), (userName, onboardingCompleted, isBlockerRunning, blockedCount), (profile, vpnRunning) ->
         val isManual = _manualShowBotGuide.value
         val showGuide = isManual ?: (!onboardingCompleted)
 
@@ -72,6 +84,8 @@ class HomeViewModel @Inject constructor(
             todayTotalMinutes = totalMin,
             todaySessions = sessions,
             isBlockerActive = isBlockerRunning,
+            activeProfile = profile,
+            isDnsActive = vpnRunning,
             blockedAppCount = blockedCount,
             isLoading = false
         )

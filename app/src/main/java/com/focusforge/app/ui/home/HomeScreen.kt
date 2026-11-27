@@ -154,14 +154,14 @@ fun HomeScreen(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (uiState.isBlockerActive) "App Shield Active" else "App Shield Inactive",
+                            text = if (uiState.isBlockerActive) "Shield: ${uiState.activeProfile.name}" else "App Shield Inactive",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = if (uiState.isBlockerActive)
-                                "${uiState.blockedAppCount} distraction app(s) guarded"
+                                "${uiState.blockedAppCount} apps guarded • ${if (uiState.isDnsActive) "DNS Filter ON" else "DNS Filter OFF"}"
                             else
                                 "Tap to configure and protect your focus",
                             style = MaterialTheme.typography.bodySmall,

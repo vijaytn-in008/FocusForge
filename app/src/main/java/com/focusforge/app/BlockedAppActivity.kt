@@ -136,6 +136,7 @@ class BlockedAppActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_BLOCKED_PACKAGE = "extra_blocked_package"
+        const val EXTRA_REASON = "extra_reason"
     }
 }
 

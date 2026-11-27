@@ -5,7 +5,11 @@ import androidx.room.Room
 import com.focusforge.app.data.local.AppDatabase
 import com.focusforge.app.data.local.dao.BlockedAppAttemptDao
 import com.focusforge.app.data.local.dao.BlockedAppDao
+import com.focusforge.app.data.local.dao.CustomDomainDao
+import com.focusforge.app.data.local.dao.DnsBlockLogDao
+import com.focusforge.app.data.local.dao.DomainBlockCategoryDao
 import com.focusforge.app.data.local.dao.EmergencyBypassLogDao
+import com.focusforge.app.data.local.dao.ProfileDao
 import com.focusforge.app.data.local.dao.SessionDao
 import dagger.Module
 import dagger.Provides
@@ -26,7 +30,11 @@ object AppModule {
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
         )
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
+            .addMigrations(
+                AppDatabase.MIGRATION_1_2,
+                AppDatabase.MIGRATION_2_3,
+                AppDatabase.MIGRATION_3_4
+            )
             .build()
     }
 
@@ -48,5 +56,25 @@ object AppModule {
     @Provides
     fun provideBlockedAppAttemptDao(database: AppDatabase): BlockedAppAttemptDao {
         return database.blockedAppAttemptDao()
+    }
+
+    @Provides
+    fun provideProfileDao(database: AppDatabase): ProfileDao {
+        return database.profileDao()
+    }
+
+    @Provides
+    fun provideDomainBlockCategoryDao(database: AppDatabase): DomainBlockCategoryDao {
+        return database.domainBlockCategoryDao()
+    }
+
+    @Provides
+    fun provideCustomDomainDao(database: AppDatabase): CustomDomainDao {
+        return database.customDomainDao()
+    }
+
+    @Provides
+    fun provideDnsBlockLogDao(database: AppDatabase): DnsBlockLogDao {
+        return database.dnsBlockLogDao()
     }
 }

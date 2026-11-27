@@ -8,10 +8,13 @@ import android.graphics.drawable.Drawable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.focusforge.app.data.local.entity.EmergencyBypassLogEntity
+import com.focusforge.app.data.model.BlockingProfile
 import com.focusforge.app.data.model.DailyScreenTimeSummary
 import com.focusforge.app.data.repository.ScreenTimeRepository
 import com.focusforge.app.data.repository.BlockedAppRepository
+import com.focusforge.app.data.repository.PolicyRepository
 import com.focusforge.app.data.repository.UserPreferencesRepository
+import com.focusforge.app.enforcement.ProfileScheduler
 import com.focusforge.app.service.AppBlockerService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -36,6 +39,7 @@ data class SelectableApp(
 
 data class BlockerUiState(
     val isBlockerRunning: Boolean = false,
+    val activeProfile: BlockingProfile = BlockingProfile.OFF,
     val isBypassActive: Boolean = false,
     val bypassRemainingSeconds: Int = 0,
     val hasUsageAccess: Boolean = true,
@@ -60,7 +64,9 @@ class BlockedAppsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val blockedAppRepository: BlockedAppRepository,
     private val screenTimeRepository: ScreenTimeRepository,
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val policyRepository: PolicyRepository,
+    private val profileScheduler: ProfileScheduler
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BlockerUiState())
@@ -74,6 +80,17 @@ class BlockedAppsViewModel @Inject constructor(
         observeAttempts()
         loadScreenTime()
         observeBlockerServiceState()
+        observePolicy()
+    }
+
+    private fun observePolicy() {
+        viewModelScope.launch {
+            policyRepository.policySnapshot.collect { snapshot ->
+                _uiState.value = _uiState.value.copy(
+                    activeProfile = snapshot.activeProfile
+                )
+            }
+        }
     }
 
     fun loadScreenTime() {
@@ -249,14 +266,25 @@ class BlockedAppsViewModel @Inject constructor(
         }
     }
 
+    fun setProfile(profile: BlockingProfile) {
+        viewModelScope.launch {
+            profileScheduler.switchProfile(profile)
+            if (profile == BlockingProfile.OFF) {
+                AppBlockerService.stop(context)
+                saveBlockerPref(false)
+            } else {
+                AppBlockerService.start(context)
+                saveBlockerPref(true)
+            }
+        }
+    }
+
     fun toggleBlockerService() {
         val currentlyRunning = _uiState.value.isBlockerRunning
         if (currentlyRunning) {
-            AppBlockerService.stop(context)
-            saveBlockerPref(false)
+            setProfile(BlockingProfile.OFF)
         } else {
-            AppBlockerService.start(context)
-            saveBlockerPref(true)
+            setProfile(BlockingProfile.STRICT)
         }
     }
 

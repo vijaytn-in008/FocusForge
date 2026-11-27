@@ -24,9 +24,13 @@ class BootCompletedReceiver : BroadcastReceiver() {
         ) {
             val prefs = context.getSharedPreferences("focusforge_prefs", Context.MODE_PRIVATE)
             val isBlockerEnabled = prefs.getBoolean("app_blocker_enabled", false)
+            val isDnsEnabled = prefs.getBoolean("dns_protection_enabled", false)
 
             if (isBlockerEnabled) {
                 AppBlockerService.start(context)
+            }
+            if (isDnsEnabled) {
+                com.focusforge.app.enforcement.DnsVpnService.start(context)
             }
         }
     }
