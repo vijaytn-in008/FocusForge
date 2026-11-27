@@ -68,12 +68,18 @@ import com.focusforge.app.ui.components.ForgeCard
 import com.focusforge.app.ui.components.ForgeGradientCard
 import com.focusforge.app.ui.components.ForgeStatusPill
 import com.focusforge.app.ui.theme.Amber500
+import com.focusforge.app.ui.theme.Cyan500
 import com.focusforge.app.ui.theme.Emerald100
 import com.focusforge.app.ui.theme.Emerald500
 import com.focusforge.app.ui.theme.Emerald600
 import com.focusforge.app.ui.theme.Emerald700
+import com.focusforge.app.ui.theme.Indigo500
+import com.focusforge.app.ui.theme.Indigo600
+import com.focusforge.app.ui.theme.Orange500
+import com.focusforge.app.ui.theme.Sky500
 import com.focusforge.app.ui.theme.Slate850
 import com.focusforge.app.ui.theme.Teal700
+import com.focusforge.app.ui.theme.Violet500
 import com.focusforge.app.util.TimeUtils
 
 @Composable
@@ -154,7 +160,7 @@ fun HomeScreen(
 
             ForgeGradientCard(
                 brush = Brush.linearGradient(
-                    colors = listOf(Emerald700, Teal700, Slate850)
+                    colors = listOf(Emerald600, Teal700, Indigo700Color)
                 )
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
@@ -276,7 +282,7 @@ fun HomeScreen(
             }
         }
 
-        // Quick Protection Cards: App Shield & DNS Filter
+        // Quick Protection Cards: App Shield (Sky/Indigo) & DNS Filter (Violet/Indigo)
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -285,7 +291,8 @@ fun HomeScreen(
                 ForgeCard(
                     modifier = Modifier.weight(1f),
                     onClick = onNavigateToShield,
-                    borderColor = if (uiState.isBlockerActive) Emerald500.copy(alpha = 0.45f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
+                    containerColor = if (uiState.isBlockerActive) Sky500.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface,
+                    borderColor = if (uiState.isBlockerActive) Sky500.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(
@@ -293,15 +300,24 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = if (uiState.isBlockerActive) Icons.Default.Shield else Icons.Default.Block,
-                                contentDescription = null,
-                                tint = if (uiState.isBlockerActive) Emerald500 else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Sky500.copy(alpha = 0.16f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (uiState.isBlockerActive) Icons.Default.Shield else Icons.Default.Block,
+                                    contentDescription = null,
+                                    tint = Sky500,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                             ForgeStatusPill(
                                 label = if (uiState.isBlockerActive) uiState.activeProfile.name else "OFF",
-                                active = uiState.isBlockerActive
+                                active = uiState.isBlockerActive,
+                                activeColor = Sky500
                             )
                         }
                         Spacer(modifier = Modifier.height(10.dp))
@@ -321,7 +337,8 @@ fun HomeScreen(
                 ForgeCard(
                     modifier = Modifier.weight(1f),
                     onClick = onNavigateToProtection,
-                    borderColor = if (uiState.isDnsRunning) Emerald500.copy(alpha = 0.45f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
+                    containerColor = if (uiState.isDnsRunning) Violet500.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface,
+                    borderColor = if (uiState.isDnsRunning) Violet500.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(
@@ -329,20 +346,29 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Public,
-                                contentDescription = null,
-                                tint = if (uiState.isDnsRunning) Emerald500 else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Violet500.copy(alpha = 0.16f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Public,
+                                    contentDescription = null,
+                                    tint = Violet500,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                             ForgeStatusPill(
                                 label = if (uiState.isDnsRunning) "ON" else "OFF",
-                                active = uiState.isDnsRunning
+                                active = uiState.isDnsRunning,
+                                activeColor = Violet500
                             )
                         }
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = "DNS Filter",
+                            text = "Web & DNS",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -350,6 +376,43 @@ fun HomeScreen(
                             text = "${uiState.todayBlockedSitesCount} blocked today",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        // New-user friendly Getting Started Checklist (shown when not yet active)
+        if (uiState.past7DaysSessionCount == 0 || !uiState.isDnsRunning || uiState.blockedAppCount == 0) {
+            item {
+                ForgeCard(
+                    containerColor = Indigo500.copy(alpha = 0.08f),
+                    borderColor = Indigo500.copy(alpha = 0.3f)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "QUICK SETUP GUIDE",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Indigo600
+                        )
+                        QuickStepRow(
+                            done = uiState.past7DaysSessionCount > 0,
+                            label = "1. Start your first focus timer",
+                            onClick = onNavigateToTimer
+                        )
+                        QuickStepRow(
+                            done = uiState.blockedAppCount > 0,
+                            label = "2. Select distraction apps in App Shield",
+                            onClick = onNavigateToShield
+                        )
+                        QuickStepRow(
+                            done = uiState.isDnsRunning,
+                            label = "3. Turn ON local Web & DNS protection",
+                            onClick = onNavigateToProtection
                         )
                     }
                 }
@@ -474,6 +537,48 @@ fun HomeScreen(
             onCompleteOnboarding = viewModel::completeOnboarding,
             onDismiss = viewModel::dismissBotGuide,
             onNavigateToTimer = onNavigateToTimer
+        )
+    }
+}
+
+private val Indigo700Color = Color(0xFF4338CA)
+
+@Composable
+private fun QuickStepRow(done: Boolean, label: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(if (done) Emerald500 else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (done) {
+                    Text("✓", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (done) FontWeight.Normal else FontWeight.SemiBold,
+                color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

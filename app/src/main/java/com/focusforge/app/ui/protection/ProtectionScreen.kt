@@ -6,6 +6,7 @@ import android.net.VpnService
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -67,8 +68,10 @@ import com.focusforge.app.ui.components.ForgeCard
 import com.focusforge.app.ui.components.ForgeGradientCard
 import com.focusforge.app.ui.components.ForgeStatusPill
 import com.focusforge.app.ui.theme.Emerald700
+import com.focusforge.app.ui.theme.Indigo700
 import com.focusforge.app.ui.theme.Slate850
 import com.focusforge.app.ui.theme.Teal700
+import com.focusforge.app.ui.theme.Violet600
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -165,7 +168,7 @@ fun ProtectionScreen(
             // Master Status Card
             ForgeGradientCard(
                 brush = if (uiState.isVpnRunning) {
-                    Brush.linearGradient(listOf(Emerald700, Teal700, Slate850))
+                    Brush.linearGradient(listOf(Indigo700, Violet600, Emerald700))
                 } else {
                     Brush.linearGradient(
                         listOf(
@@ -174,7 +177,7 @@ fun ProtectionScreen(
                         )
                     )
                 },
-                cornerRadius = 20.dp
+                cornerRadius = 22.dp
             ) {
                 Row(
                     modifier = Modifier
