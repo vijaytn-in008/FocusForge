@@ -10,6 +10,7 @@ import com.focusforge.app.data.model.PolicyTier
 import com.focusforge.app.data.model.UpstreamResolverProvider
 import com.focusforge.app.data.repository.PolicyStore
 import com.focusforge.app.enforcement.BlocklistEngine
+import com.focusforge.app.enforcement.DnsDecisionBuffer
 import com.focusforge.app.enforcement.DnsVpnService
 import com.focusforge.app.enforcement.DomainCheckResult
 import com.focusforge.app.enforcement.DomainNormalizer
@@ -38,7 +39,9 @@ data class ProtectionUiState(
     val allowDomainInput: String = "",
     val allowActionMessage: String? = null,
     val testDomainInput: String = "",
-    val testDomainResult: DomainCheckResult? = null
+    val testDomainResult: DomainCheckResult? = null,
+    val isDecisionBufferEnabled: Boolean = false,
+    val decisionBufferCount: Int = 0
 )
 
 @HiltViewModel
@@ -46,7 +49,8 @@ class ProtectionViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val policyStore: PolicyStore,
     private val blocklistEngine: BlocklistEngine,
-    private val ruleChangeGate: RuleChangeGate
+    private val ruleChangeGate: RuleChangeGate,
+    private val decisionBuffer: DnsDecisionBuffer
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProtectionUiState())
@@ -107,6 +111,18 @@ class ProtectionViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(pauseEventsCount = count)
             }
         }
+
+        viewModelScope.launch {
+            decisionBuffer.isEnabled.collect { enabled ->
+                _uiState.value = _uiState.value.copy(isDecisionBufferEnabled = enabled)
+            }
+        }
+
+        viewModelScope.launch {
+            decisionBuffer.entries.collect { entries ->
+                _uiState.value = _uiState.value.copy(decisionBufferCount = entries.size)
+            }
+        }
     }
 
     fun refreshPrivateDnsStatus() {
@@ -123,17 +139,23 @@ class ProtectionViewModel @Inject constructor(
         }
     }
 
-    fun toggleVpn() {
+    fun enableVpn() {
         viewModelScope.launch {
-            if (_uiState.value.isVpnRunning || _uiState.value.isDnsProtectionEnabled) {
-                policyStore.setDnsProtectionEnabled(false)
-                DnsVpnService.stop(context)
-            } else {
-                policyStore.setDnsProtectionEnabled(true)
-                ruleChangeGate.resumeProtectionNow()
-                DnsVpnService.start(context)
-            }
+            policyStore.setDnsProtectionEnabled(true)
+            ruleChangeGate.resumeProtectionNow()
+            DnsVpnService.start(context)
         }
+    }
+
+    fun disableVpn() {
+        viewModelScope.launch {
+            policyStore.setDnsProtectionEnabled(false)
+            DnsVpnService.stop(context)
+        }
+    }
+
+    fun setDecisionBufferEnabled(enabled: Boolean) {
+        decisionBuffer.setEnabled(enabled)
     }
 
     fun pauseFor5Minutes() {

@@ -17,8 +17,10 @@ import android.widget.EditText
 import androidx.activity.compose.BackHandler
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -48,6 +51,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -62,6 +66,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -450,33 +455,52 @@ private fun PrivateDomainTextField(
     onValueChange: (String) -> Unit,
     hint: String
 ) {
-    AndroidView(
+    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val hintColor = MaterialTheme.colorScheme.onSurfaceVariant.toArgb()
+
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        factory = { ctx ->
-            EditText(ctx).apply {
-                this.hint = hint
-                isSingleLine = true
-                inputType = InputType.TYPE_CLASS_TEXT or
-                    InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
-                    InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
-                imeOptions = EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING or
-                    EditorInfo.IME_FLAG_NO_EXTRACT_UI
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+            AndroidView(
+                modifier = Modifier.fillMaxWidth(),
+                factory = { ctx ->
+                    EditText(ctx).apply {
+                        this.hint = hint
+                        this.background = null
+                        this.setPadding(0, 0, 0, 0)
+                        this.textSize = 16f
+                        this.setTextColor(textColor)
+                        this.setHintTextColor(hintColor)
+                        isSingleLine = true
+                        inputType = InputType.TYPE_CLASS_TEXT or
+                            InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
+                            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                        imeOptions = EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING or
+                            EditorInfo.IME_FLAG_NO_EXTRACT_UI
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+                        }
+                        doAfterTextChanged { editable ->
+                            val txt = editable?.toString() ?: ""
+                            if (txt != value) onValueChange(txt)
+                        }
+                    }
+                },
+                update = { editText ->
+                    editText.setTextColor(textColor)
+                    editText.setHintTextColor(hintColor)
+                    if (editText.text.toString() != value) {
+                        editText.setText(value)
+                        editText.setSelection(value.length)
+                    }
                 }
-                doAfterTextChanged { editable ->
-                    val txt = editable?.toString() ?: ""
-                    if (txt != value) onValueChange(txt)
-                }
-            }
-        },
-        update = { editText ->
-            if (editText.text.toString() != value) {
-                editText.setText(value)
-                editText.setSelection(value.length)
-            }
+            )
         }
-    )
+    }
 }
 
 @Composable

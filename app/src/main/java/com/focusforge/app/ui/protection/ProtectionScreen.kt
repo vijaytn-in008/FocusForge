@@ -60,12 +60,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.focusforge.app.data.model.BlockResponseMode
 import com.focusforge.app.data.model.PolicyTier
 import com.focusforge.app.data.model.UpstreamResolverProvider
+import com.focusforge.app.enforcement.DecisionReason
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProtectionScreen(
     onNavigateBack: () -> Unit,
     onNavigateToPrivateList: () -> Unit = {},
+    onNavigateToWhyBlocked: () -> Unit = {},
     viewModel: ProtectionViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -87,19 +89,19 @@ fun ProtectionScreen(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            viewModel.toggleVpn()
+            viewModel.enableVpn()
         }
     }
 
-    val onToggleVpnClick = {
-        if (uiState.isVpnRunning || uiState.isDnsProtectionEnabled) {
-            viewModel.toggleVpn()
+    val onToggleVpnClick: (Boolean) -> Unit = { wantEnable ->
+        if (!wantEnable) {
+            viewModel.disableVpn()
         } else {
             val vpnIntent = VpnService.prepare(context)
             if (vpnIntent != null) {
                 showVpnExplanationDialog = true
             } else {
-                viewModel.toggleVpn()
+                viewModel.enableVpn()
             }
         }
     }
@@ -118,7 +120,7 @@ fun ProtectionScreen(
                 Button(onClick = {
                     showVpnExplanationDialog = false
                     val vpnIntent = VpnService.prepare(context)
-                    if (vpnIntent != null) vpnLauncher.launch(vpnIntent) else viewModel.toggleVpn()
+                    if (vpnIntent != null) vpnLauncher.launch(vpnIntent) else viewModel.enableVpn()
                 }) {
                     Text("Continue")
                 }
@@ -186,8 +188,8 @@ fun ProtectionScreen(
                         )
                     }
                     Switch(
-                        checked = uiState.isVpnRunning || uiState.isDnsProtectionEnabled,
-                        onCheckedChange = { onToggleVpnClick() },
+                        checked = uiState.isVpnRunning,
+                        onCheckedChange = { onToggleVpnClick(it) },
                         thumbContent = if (uiState.isVpnRunning) {
                             { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
                         } else null
@@ -374,12 +376,32 @@ fun ProtectionScreen(
                 Button(onClick = { viewModel.testDomain() }) { Text("Test") }
             }
             uiState.testDomainResult?.let { res ->
+                val reasonLabel = if (res.reason == DecisionReason.PRIVATE_RULE) {
+                    "Private rule"
+                } else {
+                    res.matchedTier?.name ?: res.reason.name
+                }
                 Text(
-                    text = "Decision: ${res.decision.name} (${res.reason.name})",
+                    text = "Decision: ${res.decision.name} ($reasonLabel)",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = if (res.isBlocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                 )
+            }
+
+            // Debug-only opt-in DNS Decision Buffer & "Why was this blocked?"
+            Text("Diagnostics (In-Memory Only)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            TierToggleRow(
+                title = "DNS decision buffer (Debug)",
+                subtitle = "Keeps last 300 queries in memory only. Cleared when VPN stops.",
+                checked = uiState.isDecisionBufferEnabled,
+                onToggle = { viewModel.setDecisionBufferEnabled(!uiState.isDecisionBufferEnabled) }
+            )
+            OutlinedButton(
+                onClick = onNavigateToWhyBlocked,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Why was this blocked? (${uiState.decisionBufferCount})")
             }
 
             Spacer(modifier = Modifier.height(24.dp))

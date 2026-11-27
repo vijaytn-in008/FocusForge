@@ -15,6 +15,8 @@ import com.focusforge.app.ui.protection.PrivateListScreen
 import com.focusforge.app.ui.protection.PrivateListViewModel
 import com.focusforge.app.ui.protection.ProtectionScreen
 import com.focusforge.app.ui.protection.ProtectionViewModel
+import com.focusforge.app.ui.protection.WhyBlockedScreen
+import com.focusforge.app.ui.protection.WhyBlockedViewModel
 import com.focusforge.app.ui.timer.TimerScreen
 
 @Composable
@@ -84,6 +86,9 @@ fun NavGraph(
                 onNavigateToPrivateList = {
                     navController.navigate(Screen.PrivateList.route)
                 },
+                onNavigateToWhyBlocked = {
+                    navController.navigate(Screen.WhyBlocked.route)
+                },
                 viewModel = protectionViewModel
             )
         }
@@ -95,6 +100,16 @@ fun NavGraph(
                     navController.popBackStack()
                 },
                 viewModel = privateListViewModel
+            )
+        }
+
+        composable(Screen.WhyBlocked.route) {
+            val whyBlockedViewModel: WhyBlockedViewModel = hiltViewModel()
+            WhyBlockedScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                viewModel = whyBlockedViewModel
             )
         }
     }

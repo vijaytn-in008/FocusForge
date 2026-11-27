@@ -70,6 +70,9 @@ class DnsVpnService : VpnService() {
     @Inject
     lateinit var ruleChangeGate: RuleChangeGate
 
+    @Inject
+    lateinit var decisionBuffer: DnsDecisionBuffer
+
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val forwardExecutor = Executors.newFixedThreadPool(4)
     private val inflightSemaphore = Semaphore(MAX_CONCURRENT_QUERIES)
@@ -310,6 +313,15 @@ class DnsVpnService : VpnService() {
             serviceScope.launch {
                 policyStore.incrementTodayBlockedCount()
             }
+            val isPrivate = result.reason == DecisionReason.PRIVATE_RULE
+            decisionBuffer.record(
+                rawDomain = query.domain,
+                qType = query.qType,
+                decision = DnsBufferDecision.BLOCKED,
+                reason = result.matchedTier?.name ?: result.reason.name,
+                isPrivateRule = isPrivate,
+                upstreamLatencyMs = 0L
+            )
 
             val blockedResp = when (currentBlockMode) {
                 BlockResponseMode.NXDOMAIN -> DnsPacketParser.buildNxdomainResponse(packet, length, query)
@@ -327,9 +339,10 @@ class DnsVpnService : VpnService() {
         }
 
         val packetCopy = packet.copyOf(length)
+        val allowReason = result.reason.name
         forwardExecutor.execute {
             try {
-                forwardQueryWithRetry(packetCopy, length, query, tunOut)
+                forwardQueryWithRetry(packetCopy, length, query, allowReason, tunOut)
             } finally {
                 inflightSemaphore.release()
             }
@@ -340,10 +353,19 @@ class DnsVpnService : VpnService() {
         packet: ByteArray,
         length: Int,
         query: DnsQuery,
+        allowReason: String,
         tunOut: FileOutputStream
     ) {
         val resolvers = getSelectedResolvers()
         if (resolvers.isEmpty()) {
+            decisionBuffer.record(
+                rawDomain = query.domain,
+                qType = query.qType,
+                decision = DnsBufferDecision.UPSTREAM_ERROR,
+                reason = "NO_UPSTREAM_RESOLVER",
+                isPrivateRule = false,
+                upstreamLatencyMs = 0L
+            )
             recordUpstreamFailureAndRespondServfail(packet, query, tunOut)
             return
         }
@@ -352,11 +374,21 @@ class DnsVpnService : VpnService() {
 
         // Attempt 1 + bounded 1 retry (up to 2 resolvers or same resolver twice)
         val targets = if (resolvers.size >= 2) resolvers.take(2) else listOf(resolvers[0], resolvers[0])
+        val startNs = System.nanoTime()
 
         for (upstreamAddress in targets) {
             val responseBytes = queryUpstreamUdpThenTcpFallback(upstreamAddress, dnsPayload)
             if (responseBytes != null) {
+                val latencyMs = (System.nanoTime() - startNs) / 1_000_000L
                 healthMonitor.recordSuccess()
+                decisionBuffer.record(
+                    rawDomain = query.domain,
+                    qType = query.qType,
+                    decision = DnsBufferDecision.ALLOWED,
+                    reason = allowReason,
+                    isPrivateRule = false,
+                    upstreamLatencyMs = latencyMs
+                )
                 val ipPacket = DnsPacketParser.buildResponseIpPacket(
                     originalQueryPacket = packet,
                     query = query,
@@ -368,6 +400,15 @@ class DnsVpnService : VpnService() {
             }
         }
 
+        val latencyMs = (System.nanoTime() - startNs) / 1_000_000L
+        decisionBuffer.record(
+            rawDomain = query.domain,
+            qType = query.qType,
+            decision = DnsBufferDecision.TIMEOUT,
+            reason = "UPSTREAM_TIMEOUT",
+            isPrivateRule = false,
+            upstreamLatencyMs = latencyMs
+        )
         // Never convert upstream errors into NXDOMAIN: return SERVFAIL after 1 retry
         recordUpstreamFailureAndRespondServfail(packet, query, tunOut)
     }
@@ -576,6 +617,9 @@ class DnsVpnService : VpnService() {
     private fun triggerFailOpen(reason: String) {
         _isFailOpenPaused.value = true
         _lastFailOpenReason.value = reason
+        serviceScope.launch {
+            policyStore.setDnsProtectionEnabled(false)
+        }
         showFailOpenAlertNotification()
         stopVpn()
     }
@@ -675,6 +719,7 @@ class DnsVpnService : VpnService() {
 
     private fun stopVpn() {
         pauseTunnelOnly()
+        decisionBuffer.clear()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

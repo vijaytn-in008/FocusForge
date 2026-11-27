@@ -68,6 +68,13 @@ sealed class Screen(
         unselectedIcon = Icons.Outlined.Shield
     )
 
+    data object WhyBlocked : Screen(
+        route = "why_blocked",
+        title = "Why was this blocked?",
+        selectedIcon = Icons.Filled.Public,
+        unselectedIcon = Icons.Outlined.Public
+    )
+
     companion object {
         val bottomNavScreens = listOf(Home, Timer, Shield, History)
     }
