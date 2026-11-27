@@ -104,8 +104,8 @@ class ScreenTimeRepositoryImpl @Inject constructor(
         val allValidAppIntervals = mutableListOf<TimeInterval>()
 
         for ((pkgName, rawIntervals) in appIntervalsMap) {
-            // Exclude our own app and core system packages
-            if (pkgName == context.packageName || isCoreSystemPackage(pkgName)) continue
+            // Exclude core system packages (include FocusForge's own screen time as requested)
+            if (isCoreSystemPackage(pkgName)) continue
 
             val appInfo = try {
                 pm.getApplicationInfo(pkgName, 0)

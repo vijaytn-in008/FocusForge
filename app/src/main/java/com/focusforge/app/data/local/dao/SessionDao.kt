@@ -23,6 +23,9 @@ interface SessionDao {
     @Query("SELECT * FROM sessions WHERE startTime >= :startOfDay AND startTime < :endOfDay ORDER BY startTime DESC")
     fun getSessionsForDay(startOfDay: Long, endOfDay: Long): Flow<List<SessionEntity>>
 
+    @Query("SELECT * FROM sessions WHERE startTime >= :since ORDER BY startTime DESC")
+    fun getSessionsSince(since: Long): Flow<List<SessionEntity>>
+
     @Query("SELECT SUM(durationMin) FROM sessions WHERE type = 'DEEP' AND startTime >= :since")
     fun totalDeepWorkMinutesSince(since: Long): Flow<Int?>
 

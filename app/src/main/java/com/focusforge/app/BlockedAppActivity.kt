@@ -95,6 +95,7 @@ class BlockedAppActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val isPrivateRule = intent.getBooleanExtra(EXTRA_IS_PRIVATE_RULE, false)
+        val isSiteBlocked = intent.getBooleanExtra(EXTRA_IS_SITE_BLOCKED, false)
         if (isPrivateRule) {
             window.setFlags(
                 WindowManager.LayoutParams.FLAG_SECURE,
@@ -102,7 +103,7 @@ class BlockedAppActivity : ComponentActivity() {
             )
         }
 
-        val blockedPackage = if (isPrivateRule) "" else (intent.getStringExtra(EXTRA_BLOCKED_PACKAGE) ?: "")
+        val blockedPackage = if (isPrivateRule || isSiteBlocked) "" else (intent.getStringExtra(EXTRA_BLOCKED_PACKAGE) ?: "")
 
         // Handle back button press: always send user to home launcher
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -121,6 +122,7 @@ class BlockedAppActivity : ComponentActivity() {
                     BlockedAppContent(
                         packageName = blockedPackage,
                         isPrivateRule = isPrivateRule,
+                        isSiteBlocked = isSiteBlocked,
                         activeProfile = policy.activeProfile,
                         onGoHome = { sendUserHome() },
                         onEmergencyBypass = {
@@ -153,6 +155,7 @@ class BlockedAppActivity : ComponentActivity() {
     companion object {
         const val EXTRA_BLOCKED_PACKAGE = "extra_blocked_package"
         const val EXTRA_IS_PRIVATE_RULE = "extra_is_private_rule"
+        const val EXTRA_IS_SITE_BLOCKED = "extra_is_site_blocked"
         const val EXTRA_REASON = "extra_reason"
     }
 }
@@ -161,6 +164,7 @@ class BlockedAppActivity : ComponentActivity() {
 fun BlockedAppContent(
     packageName: String,
     isPrivateRule: Boolean = false,
+    isSiteBlocked: Boolean = false,
     activeProfile: BlockingProfile = BlockingProfile.STRICT,
     onGoHome: () -> Unit,
     onEmergencyBypass: () -> Unit
@@ -168,12 +172,12 @@ fun BlockedAppContent(
     val context = LocalContext.current
     val timerState by TimerService.timerState.collectAsState()
 
-    // Resolve app details ONLY when not a private rule
-    var appName by remember { mutableStateOf(if (isPrivateRule) "" else packageName) }
+    // Resolve app details ONLY when not a private rule or blocked site
+    var appName by remember { mutableStateOf(if (isPrivateRule || isSiteBlocked) "" else packageName) }
     var appIconDrawable by remember { mutableStateOf<Drawable?>(null) }
 
-    LaunchedEffect(packageName, isPrivateRule) {
-        if (!isPrivateRule && packageName.isNotBlank()) {
+    LaunchedEffect(packageName, isPrivateRule, isSiteBlocked) {
+        if (!isPrivateRule && !isSiteBlocked && packageName.isNotBlank()) {
             try {
                 val pm = context.packageManager
                 val appInfo = pm.getApplicationInfo(packageName, 0)
@@ -256,6 +260,9 @@ fun BlockedAppContent(
         Spacer(modifier = Modifier.height(8.dp))
 
         val subtitleText = when {
+            isSiteBlocked && (timerState.status == TimerStatus.RUNNING || timerState.status == TimerStatus.PAUSED) ->
+                "This site is protected. Stay focused on ${timerState.subject}."
+            isSiteBlocked -> "This site is protected by your focus rules."
             isPrivateRule -> "Blocked by your focus rules."
             timerState.status == TimerStatus.RUNNING || timerState.status == TimerStatus.PAUSED ->
                 "$appName is paused while you work on ${timerState.subject}."

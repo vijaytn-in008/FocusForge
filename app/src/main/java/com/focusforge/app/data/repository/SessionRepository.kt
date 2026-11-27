@@ -15,6 +15,7 @@ interface SessionRepository {
     fun getTodayTotalMinutes(): Flow<Int>
     fun getTodayDeepMinutes(): Flow<Int>
     fun getTotalDeepWorkMinutesSince(since: Long): Flow<Int>
+    fun getSessionsSince(since: Long): Flow<List<Session>>
     suspend fun saveSession(session: Session): Long
     suspend fun deleteSession(session: Session)
 }
@@ -49,6 +50,12 @@ class SessionRepositoryImpl @Inject constructor(
 
     override fun getTotalDeepWorkMinutesSince(since: Long): Flow<Int> {
         return sessionDao.totalDeepWorkMinutesSince(since).map { it ?: 0 }
+    }
+
+    override fun getSessionsSince(since: Long): Flow<List<Session>> {
+        return sessionDao.getSessionsSince(since).map { list ->
+            list.map { it.toDomain() }
+        }
     }
 
     override suspend fun saveSession(session: Session): Long {

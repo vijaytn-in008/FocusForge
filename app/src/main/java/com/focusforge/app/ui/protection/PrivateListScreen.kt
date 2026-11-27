@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -373,7 +374,10 @@ fun PrivateListScreen(
                                 modifier = Modifier.weight(1f)
                             )
                             IconButton(onClick = { viewModel.revealItem(key) }) {
-                                Icon(Icons.Default.Visibility, contentDescription = "Reveal for 10s")
+                                Icon(
+                                    imageVector = if (isRevealed) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (isRevealed) "Hide" else "Reveal for 10s"
+                                )
                             }
                             IconButton(onClick = { viewModel.requestRemoveByHash(item.hash) }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Remove")
@@ -413,7 +417,10 @@ fun PrivateListScreen(
                                 modifier = Modifier.weight(1f)
                             )
                             IconButton(onClick = { viewModel.revealItem(key) }) {
-                                Icon(Icons.Default.Visibility, contentDescription = "Reveal for 10s")
+                                Icon(
+                                    imageVector = if (isRevealed) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (isRevealed) "Hide" else "Reveal for 10s"
+                                )
                             }
                             IconButton(onClick = { viewModel.requestRemovePrivateApp(item.packageName) }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Remove")

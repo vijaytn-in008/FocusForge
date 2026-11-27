@@ -74,6 +74,9 @@ class PrivateListViewModel @Inject constructor(
     val uiState: StateFlow<PrivateListUiState> = _uiState.asStateFlow()
 
     private var autoHideJob: Job? = null
+    // In-memory only while screen is authenticated; cleared on lock/pause/background
+    private val sessionDomainNames = mutableMapOf<Long, String>()
+    private val sessionAppNames = mutableMapOf<String, String>()
 
     init {
         observeStore()
@@ -133,6 +136,8 @@ class PrivateListViewModel @Inject constructor(
 
     fun lockAndHide() {
         autoHideJob?.cancel()
+        sessionDomainNames.clear()
+        sessionAppNames.clear()
         _uiState.value = _uiState.value.copy(
             isAuthenticated = false,
             revealedItemKey = null,
@@ -174,8 +179,10 @@ class PrivateListViewModel @Inject constructor(
 
         when (val res = privateListStore.readVaultNames()) {
             is PrivateVault.VaultReadResult.Success -> {
+                sessionDomainNames.putAll(res.domainNames)
+                sessionAppNames.putAll(res.appNames)
                 val domainItems = hashes.map { h ->
-                    val real = res.domainNames[h]
+                    val real = sessionDomainNames[h]
                     MaskedPrivateDomainItem(
                         hash = h,
                         maskedName = real?.let { PrivateMasker.maskDomain(it) } ?: "•••••",
@@ -183,7 +190,7 @@ class PrivateListViewModel @Inject constructor(
                     )
                 }
                 val appItems = apps.map { pkg ->
-                    val label = res.appNames[pkg] ?: pkg
+                    val label = sessionAppNames[pkg] ?: pkg
                     MaskedPrivateAppItem(
                         packageName = pkg,
                         maskedLabel = PrivateMasker.maskLabel(label),
@@ -199,7 +206,18 @@ class PrivateListViewModel @Inject constructor(
                 lockAndHide()
             }
             is PrivateVault.VaultReadResult.Error -> {
-                _uiState.value = _uiState.value.copy(statusMessage = "Vault unavailable")
+                val domainItems = hashes.map { h ->
+                    val real = sessionDomainNames[h]
+                    MaskedPrivateDomainItem(
+                        hash = h,
+                        maskedName = real?.let { PrivateMasker.maskDomain(it) } ?: "•••••",
+                        realName = real
+                    )
+                }
+                _uiState.value = _uiState.value.copy(
+                    maskedDomains = domainItems,
+                    statusMessage = "Vault unavailable"
+                )
             }
         }
     }
@@ -234,6 +252,9 @@ class PrivateListViewModel @Inject constructor(
 
     private fun confirmAddDomain(domain: String) {
         val addedHash = privateListStore.addPrivateDomain(domain)
+        if (addedHash != null && !privateListStore.isHashOnlyMode.value) {
+            sessionDomainNames[addedHash] = domain
+        }
         _uiState.value = if (addedHash != null) {
             _uiState.value.copy(
                 domainInput = "",
@@ -251,7 +272,13 @@ class PrivateListViewModel @Inject constructor(
             .filter { it.isNotEmpty() }
         var added = 0
         for (d in tokens) {
-            if (privateListStore.addPrivateDomain(d) != null) added++
+            val h = privateListStore.addPrivateDomain(d)
+            if (h != null) {
+                if (!privateListStore.isHashOnlyMode.value) {
+                    sessionDomainNames[h] = d
+                }
+                added++
+            }
         }
         _uiState.value = _uiState.value.copy(
             statusMessage = if (added > 0) "Added $added rule(s)." else "No valid domains found in clipboard."
@@ -281,6 +308,9 @@ class PrivateListViewModel @Inject constructor(
 
     fun addPrivateApp(packageName: String, label: String) {
         privateListStore.addPrivateApp(packageName, label)
+        if (!privateListStore.isHashOnlyMode.value) {
+            sessionAppNames[packageName] = label
+        }
         _uiState.value = _uiState.value.copy(statusMessage = "App rule added.")
         refreshMaskedItems()
     }

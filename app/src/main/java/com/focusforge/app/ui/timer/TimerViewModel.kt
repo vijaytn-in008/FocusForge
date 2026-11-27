@@ -17,11 +17,13 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.math.ceil
 
 data class TimerUiState(
     val subjectInput: String = "General Focus",
     val topicInput: String = "",
     val durationMinutes: Int = 25,
+    val customDurationInput: String = "25",
     val sessionType: SessionType = SessionType.DEEP,
     val timerServiceState: TimerState = TimerState(),
     val showRatingDialog: Boolean = false,
@@ -32,6 +34,7 @@ private data class FormState(
     val subject: String = "General Focus",
     val topic: String = "",
     val durationMinutes: Int = 25,
+    val customDurationInput: String = "25",
     val sessionType: SessionType = SessionType.DEEP,
     val showRatingDialog: Boolean = false,
     val selectedRating: Int = 5
@@ -43,24 +46,33 @@ class TimerViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _formState = MutableStateFlow(FormState())
-
-    // Store completed session details for rating
     private var completedSessionDetails: TimerState? = null
+    private var lastSavedStartTimeMillis: Long = -1L
+
+    init {
+        viewModelScope.launch {
+            TimerService.timerState.collect { serviceState ->
+                if (serviceState.status == TimerStatus.COMPLETED &&
+                    serviceState.startTimeMillis > 0L &&
+                    serviceState.startTimeMillis != lastSavedStartTimeMillis &&
+                    !_formState.value.showRatingDialog
+                ) {
+                    completedSessionDetails = serviceState
+                    _formState.value = _formState.value.copy(showRatingDialog = true)
+                }
+            }
+        }
+    }
 
     val uiState: StateFlow<TimerUiState> = combine(
         _formState,
         TimerService.timerState
     ) { form, serviceState ->
-        // Auto-show rating dialog when timer status transitions to COMPLETED
-        if (serviceState.status == TimerStatus.COMPLETED && !form.showRatingDialog) {
-            completedSessionDetails = serviceState
-            _formState.value = _formState.value.copy(showRatingDialog = true)
-        }
-
         TimerUiState(
             subjectInput = form.subject,
             topicInput = form.topic,
             durationMinutes = form.durationMinutes,
+            customDurationInput = form.customDurationInput,
             sessionType = form.sessionType,
             timerServiceState = serviceState,
             showRatingDialog = form.showRatingDialog,
@@ -81,7 +93,24 @@ class TimerViewModel @Inject constructor(
     }
 
     fun onDurationChanged(minutes: Int) {
-        _formState.value = _formState.value.copy(durationMinutes = minutes.coerceIn(1, 180))
+        val clamped = minutes.coerceIn(1, 240)
+        _formState.value = _formState.value.copy(
+            durationMinutes = clamped,
+            customDurationInput = clamped.toString()
+        )
+    }
+
+    fun onCustomDurationInputChanged(raw: String) {
+        val digitsOnly = raw.filter { it.isDigit() }.take(3)
+        val parsed = digitsOnly.toIntOrNull()
+        _formState.value = if (parsed != null && parsed > 0) {
+            _formState.value.copy(
+                customDurationInput = digitsOnly,
+                durationMinutes = parsed.coerceIn(1, 240)
+            )
+        } else {
+            _formState.value.copy(customDurationInput = digitsOnly)
+        }
     }
 
     fun onSessionTypeChanged(type: SessionType) {
@@ -94,7 +123,9 @@ class TimerViewModel @Inject constructor(
 
     fun startTimer(context: Context) {
         val form = _formState.value
-        val durationSec = form.durationMinutes * 60
+        val durationSec = form.durationMinutes.coerceIn(1, 240) * 60
+        lastSavedStartTimeMillis = -1L
+        completedSessionDetails = null
         TimerService.startTimer(
             context = context,
             subject = form.subject.ifBlank { "General Focus" },
@@ -113,80 +144,105 @@ class TimerViewModel @Inject constructor(
     }
 
     fun stopTimer(context: Context, shouldSavePartial: Boolean = false) {
-        val current = TimerService.timerState.value
-        TimerService.stopTimer(context)
-
-        if (shouldSavePartial && current.status != TimerStatus.IDLE) {
+        val snapshot = TimerService.timerState.value
+        if (shouldSavePartial && snapshot.status != TimerStatus.IDLE) {
             stopAndSaveSession(context, _formState.value.selectedRating)
             return
         }
+        TimerService.stopTimer(context)
         completedSessionDetails = null
         _formState.value = _formState.value.copy(showRatingDialog = false)
         TimerService.resetState()
     }
 
     fun stopAndSaveSession(context: Context, rating: Int = 4) {
-        val current = TimerService.timerState.value
+        // Capture state BEFORE stopping the service (which resets TimerState)
+        val snapshot = TimerService.timerState.value
         TimerService.stopTimer(context)
 
+        if (snapshot.status == TimerStatus.IDLE ||
+            (snapshot.startTimeMillis > 0L && snapshot.startTimeMillis == lastSavedStartTimeMillis)
+        ) {
+            _formState.value = _formState.value.copy(showRatingDialog = false)
+            TimerService.resetState()
+            return
+        }
+
+        val elapsedSec = (snapshot.totalSeconds - snapshot.remainingSeconds).coerceAtLeast(0)
+        if (elapsedSec <= 0) {
+            _formState.value = _formState.value.copy(showRatingDialog = false)
+            TimerService.resetState()
+            return
+        }
+
+        lastSavedStartTimeMillis = snapshot.startTimeMillis
+        completedSessionDetails = null
+        _formState.value = _formState.value.copy(showRatingDialog = false)
+        TimerService.resetState()
+
         viewModelScope.launch {
-            val elapsedSec = (current.totalSeconds - current.remainingSeconds)
-            val durationMin = maxOf(1, kotlin.math.ceil(elapsedSec / 60.0).toInt())
-            val startTime = if (current.startTimeMillis > 0) {
-                current.startTimeMillis
+            val durationMin = maxOf(1, ceil(elapsedSec / 60.0).toInt())
+            val startTime = if (snapshot.startTimeMillis > 0L) {
+                snapshot.startTimeMillis
             } else {
                 System.currentTimeMillis() - (durationMin * 60 * 1000L)
             }
-
-            val session = Session(
-                subject = current.subject.ifBlank { "General Focus" },
-                topic = current.topic,
-                startTime = startTime,
-                durationMin = durationMin,
-                focusRating = rating.coerceIn(1, 5),
-                type = current.sessionType
+            sessionRepository.saveSession(
+                Session(
+                    subject = snapshot.subject.ifBlank { "General Focus" },
+                    topic = snapshot.topic,
+                    startTime = startTime,
+                    durationMin = durationMin,
+                    focusRating = rating.coerceIn(1, 5),
+                    type = snapshot.sessionType
+                )
             )
-
-            sessionRepository.saveSession(session)
-            completedSessionDetails = null
-            _formState.value = _formState.value.copy(showRatingDialog = false)
-            TimerService.resetState()
         }
     }
 
     fun saveCompletedSession(rating: Int) {
+        val sessionToSave = completedSessionDetails ?: TimerService.timerState.value
+        if (sessionToSave.status == TimerStatus.IDLE ||
+            (sessionToSave.startTimeMillis > 0L && sessionToSave.startTimeMillis == lastSavedStartTimeMillis)
+        ) {
+            _formState.value = _formState.value.copy(showRatingDialog = false)
+            completedSessionDetails = null
+            TimerService.resetState()
+            return
+        }
+
+        lastSavedStartTimeMillis = sessionToSave.startTimeMillis
+        _formState.value = _formState.value.copy(showRatingDialog = false)
+        completedSessionDetails = null
+        TimerService.resetState()
+
         viewModelScope.launch {
-            val sessionToSave = completedSessionDetails ?: TimerService.timerState.value
-            val elapsedSec = sessionToSave.totalSeconds - sessionToSave.remainingSeconds
+            val elapsedSec = (sessionToSave.totalSeconds - sessionToSave.remainingSeconds).coerceAtLeast(0)
             val durationMin = if (sessionToSave.status == TimerStatus.COMPLETED || sessionToSave.remainingSeconds == 0) {
                 maxOf(1, sessionToSave.totalSeconds / 60)
             } else {
-                maxOf(1, kotlin.math.ceil(elapsedSec / 60.0).toInt())
+                maxOf(1, ceil(elapsedSec / 60.0).toInt())
             }
-
-            val startTime = if (sessionToSave.startTimeMillis > 0) {
+            val startTime = if (sessionToSave.startTimeMillis > 0L) {
                 sessionToSave.startTimeMillis
             } else {
                 System.currentTimeMillis() - (durationMin * 60 * 1000L)
             }
-
-            val session = Session(
-                subject = sessionToSave.subject.ifBlank { "General Focus" },
-                topic = sessionToSave.topic,
-                startTime = startTime,
-                durationMin = durationMin,
-                focusRating = rating.coerceIn(1, 5),
-                type = sessionToSave.sessionType
+            sessionRepository.saveSession(
+                Session(
+                    subject = sessionToSave.subject.ifBlank { "General Focus" },
+                    topic = sessionToSave.topic,
+                    startTime = startTime,
+                    durationMin = durationMin,
+                    focusRating = rating.coerceIn(1, 5),
+                    type = sessionToSave.sessionType
+                )
             )
-
-            sessionRepository.saveSession(session)
-            _formState.value = _formState.value.copy(showRatingDialog = false)
-            completedSessionDetails = null
-            TimerService.resetState()
         }
     }
 
     fun dismissRatingDialog() {
+        lastSavedStartTimeMillis = completedSessionDetails?.startTimeMillis ?: -1L
         _formState.value = _formState.value.copy(showRatingDialog = false)
         completedSessionDetails = null
         TimerService.resetState()

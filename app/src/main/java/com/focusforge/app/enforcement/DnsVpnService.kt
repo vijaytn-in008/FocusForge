@@ -19,6 +19,7 @@ import android.os.ParcelFileDescriptor
 import android.provider.Settings
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.focusforge.app.BlockedAppActivity
 import com.focusforge.app.FocusForgeApp
 import com.focusforge.app.MainActivity
 import com.focusforge.app.R
@@ -26,6 +27,8 @@ import com.focusforge.app.data.model.BlockResponseMode
 import com.focusforge.app.data.model.PolicySnapshot
 import com.focusforge.app.data.model.UpstreamResolverProvider
 import com.focusforge.app.data.repository.PolicyStore
+import com.focusforge.app.service.TimerService
+import com.focusforge.app.service.TimerStatus
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -96,6 +99,8 @@ class DnsVpnService : VpnService() {
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var isAirplaneReceiverRegistered = false
     private var autoResumeJob: Job? = null
+    @Volatile
+    private var lastBlockedSiteOverlayMillis = 0L
 
     private val airplaneReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -335,6 +340,27 @@ class DnsVpnService : VpnService() {
                 BlockResponseMode.ZERO_IP -> DnsPacketParser.buildZeroIpResponse(packet, length, query)
             }
             writeToTun(tunOut, blockedResp)
+
+            // If Focus Timer is actively running and overlay permission is granted,
+            // show the full-screen "Time to Focus" window (5s cooldown, never passes domain name).
+            if (TimerService.timerState.value.status == TimerStatus.RUNNING &&
+                Settings.canDrawOverlays(this)
+            ) {
+                val now = System.currentTimeMillis()
+                if (now - lastBlockedSiteOverlayMillis > 5_000L) {
+                    lastBlockedSiteOverlayMillis = now
+                    val focusIntent = Intent(this, BlockedAppActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        putExtra(BlockedAppActivity.EXTRA_IS_SITE_BLOCKED, true)
+                        putExtra(BlockedAppActivity.EXTRA_IS_PRIVATE_RULE, isPrivate)
+                    }
+                    try {
+                        startActivity(focusIntent)
+                    } catch (_: Exception) {}
+                }
+            }
             return
         }
 
