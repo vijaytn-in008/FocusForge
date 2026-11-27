@@ -350,6 +350,10 @@ class TimerViewModel @Inject constructor(
         )
     }
 
+    fun refreshPendingJourney() {
+        _formState.value = _formState.value.copy(pendingJourney = loadPendingJourney())
+    }
+
     fun dismissRatingDialog() {
         lastSavedStartTimeMillis = completedSessionDetails?.startTimeMillis ?: -1L
         clearPendingJourney()

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -110,8 +111,10 @@ fun BlockedAppsScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
+                windowInsets = WindowInsets(0, 0, 0, 0),
                 title = { Text("App Shield") },
                 actions = {
                     IconButton(onClick = onNavigateToProtection) {
@@ -497,7 +500,10 @@ fun AppItemRow(
                     onCheckedChange = { onToggle() },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = MaterialTheme.colorScheme.error,
-                        checkedTrackColor = MaterialTheme.colorScheme.errorContainer
+                        checkedTrackColor = MaterialTheme.colorScheme.errorContainer,
+                        uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                        uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                        uncheckedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
                     )
                 )
             }
@@ -826,21 +832,24 @@ fun ScreenTimeTrendsView(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             androidx.compose.material3.LinearProgressIndicator(
-                                progress = { categoryStat.percentageOfTotal },
+                                progress = { categoryStat.percentageOfTotal.coerceIn(0.02f, 1f) },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(6.dp)
-                                    .clip(RoundedCornerShape(3.dp)),
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(999.dp)),
                                 color = when (categoryStat.category) {
                                     AppCategoryMedium.SOCIAL -> MaterialTheme.colorScheme.error
-                                    AppCategoryMedium.MEDIA_ENTERTAINMENT -> MaterialTheme.colorScheme.tertiary
-                                    AppCategoryMedium.PRODUCTIVITY_EDUCATION -> MaterialTheme.colorScheme.primary
-                                    AppCategoryMedium.GAMING -> MaterialTheme.colorScheme.errorContainer
-                                    else -> MaterialTheme.colorScheme.outline
+                                    AppCategoryMedium.MEDIA_ENTERTAINMENT -> Amber500
+                                    AppCategoryMedium.PRODUCTIVITY_EDUCATION -> Emerald500
+                                    AppCategoryMedium.GAMING -> MaterialTheme.colorScheme.error.copy(alpha = 0.75f)
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
                                 },
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
+                                gapSize = 0.dp,
+                                drawStopIndicator = {}
                             )
                         }
                     }

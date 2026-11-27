@@ -22,8 +22,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -233,8 +237,10 @@ fun PrivateListScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
+                windowInsets = WindowInsets(0, 0, 0, 0),
                 title = { Text(screenTitle) },
                 navigationIcon = {
                     IconButton(onClick = {
@@ -307,7 +313,12 @@ fun PrivateListScreen(
                 onValueChange = { viewModel.onDomainInputChanged(it) },
                 hint = "example.com"
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Button(onClick = { viewModel.requestAddDomain() }) {
                     Icon(Icons.Default.Add, contentDescription = null)
                     Spacer(modifier = Modifier.width(4.dp))
@@ -329,8 +340,12 @@ fun PrivateListScreen(
                     Text("Paste & Clear")
                 }
                 if (uiState.isHashOnlyMode) {
-                    OutlinedButton(onClick = { viewModel.requestRemoveByRetyping() }) {
-                        Text("Remove")
+                    OutlinedButton(
+                        onClick = { viewModel.requestRemoveByRetyping() },
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                        shape = RoundedCornerShape(999.dp)
+                    ) {
+                        Text("Remove", maxLines = 1)
                     }
                 }
             }

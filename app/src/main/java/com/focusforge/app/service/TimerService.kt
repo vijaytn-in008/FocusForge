@@ -130,9 +130,39 @@ class TimerService : Service() {
     }
 
     private fun onTimerCompleted() {
-        showCompletionNotification(_timerState.value)
+        val completedState = _timerState.value
+        showCompletionNotification(completedState)
+        launchCompletionFullScreen(completedState)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    private fun launchCompletionFullScreen(state: TimerState) {
+        try {
+            val intent = buildCompletionIntent(state)
+            startActivity(intent)
+        } catch (_: Exception) {
+            // Fallback handled by high-priority full-screen completion notification
+        }
+    }
+
+    private fun buildCompletionIntent(state: TimerState): Intent {
+        val durationMin = maxOf(1, state.totalSeconds / 60)
+        val startTime = if (state.startTimeMillis > 0L) {
+            state.startTimeMillis
+        } else {
+            System.currentTimeMillis() - durationMin * 60_000L
+        }
+        return Intent(this, com.focusforge.app.TimerCompletionActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(com.focusforge.app.TimerCompletionActivity.EXTRA_SUBJECT, state.subject.ifBlank { "General Focus" })
+            putExtra(com.focusforge.app.TimerCompletionActivity.EXTRA_TOPIC, state.topic)
+            putExtra(com.focusforge.app.TimerCompletionActivity.EXTRA_START_TIME, startTime)
+            putExtra(com.focusforge.app.TimerCompletionActivity.EXTRA_DURATION_MIN, durationMin)
+            putExtra(com.focusforge.app.TimerCompletionActivity.EXTRA_SESSION_TYPE, state.sessionType.name)
+        }
     }
 
     private fun stopTimerService() {
@@ -226,22 +256,21 @@ class TimerService : Service() {
     }
 
     private fun showCompletionNotification(state: TimerState) {
-        val openAppIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
+        val completionIntent = buildCompletionIntent(state)
         val contentPendingIntent = PendingIntent.getActivity(
             this,
             10,
-            openAppIntent,
+            completionIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val completionNotification = NotificationCompat.Builder(this, FocusForgeApp.ALERT_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Session Complete")
-            .setContentText("Study block finished for '${state.subject}'. Tap to log focus.")
+            .setContentText("Study block finished for '${state.subject}'. Tap to record your journey.")
             .setAutoCancel(true)
             .setContentIntent(contentPendingIntent)
+            .setFullScreenIntent(contentPendingIntent, true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
 

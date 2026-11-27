@@ -97,6 +97,17 @@
             android:excludeFromRecents="true"
             android:theme="@style/Theme.FocusForge" />
 
+        <!-- Full-screen Timer Completion Pop-up -->
+        <activity
+            android:name=".TimerCompletionActivity"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.FocusForge" />
+
         <!-- Timer Foreground Service: stays alive when app is closed -->
         <service
             android:name=".service.TimerService"
