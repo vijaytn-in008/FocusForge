@@ -1,9 +1,14 @@
 package com.focusforge.app.ui.timer
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -14,6 +19,8 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,10 +35,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Coffee
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
@@ -576,50 +588,41 @@ private fun FocusTypeGlassCard(
         label = "glassCardGlow"
     )
 
-    val glassBackground = if (isSelected) {
-        Brush.linearGradient(
-            colors = listOf(
-                accentColor.copy(alpha = 0.30f),
-                Color.White.copy(alpha = 0.14f),
-                accentColor.copy(alpha = 0.10f)
-            )
-        )
-    } else {
-        Brush.linearGradient(
-            colors = listOf(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
-                Color.White.copy(alpha = 0.08f),
-                MaterialTheme.colorScheme.surface.copy(alpha = 0.28f)
-            )
-        )
-    }
+    val iconScale by animateFloatAsState(
+        targetValue = if (isSelected) 1.12f else 1.0f,
+        animationSpec = spring(dampingRatio = 0.55f, stiffness = 380f),
+        label = "glassIconScale"
+    )
+    val tintAlpha by animateFloatAsState(
+        targetValue = if (isSelected) 1f else 0f,
+        animationSpec = spring(stiffness = 320f),
+        label = "glassTintAlpha"
+    )
 
-    val glassBorder = if (isSelected) {
-        Brush.linearGradient(
-            colors = listOf(
-                Color.White.copy(alpha = 0.55f),
-                accentColor.copy(alpha = 0.90f),
-                accentColor.copy(alpha = 0.45f)
-            )
+    val glassBackground = Brush.linearGradient(
+        colors = listOf(
+            accentColor.copy(alpha = 0.08f + 0.26f * tintAlpha),
+            Color.White.copy(alpha = 0.06f + 0.10f * tintAlpha),
+            MaterialTheme.colorScheme.surface.copy(alpha = 0.35f - 0.15f * tintAlpha)
         )
-    } else {
-        Brush.linearGradient(
-            colors = listOf(
-                Color.White.copy(alpha = 0.22f),
-                MaterialTheme.colorScheme.outline.copy(alpha = 0.30f),
-                Color.White.copy(alpha = 0.08f)
-            )
+    )
+
+    val glassBorder = Brush.linearGradient(
+        colors = listOf(
+            Color.White.copy(alpha = 0.20f + 0.45f * tintAlpha),
+            accentColor.copy(alpha = 0.18f + 0.72f * tintAlpha),
+            Color.White.copy(alpha = 0.10f + 0.20f * tintAlpha)
         )
-    }
+    )
 
     Box(
         modifier = modifier
             .scale(scale)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(glassBackground)
             .border(
                 border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, glassBorder),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(18.dp)
             )
             .clickable(
                 interactionSource = interactionSource,
@@ -636,16 +639,17 @@ private fun FocusTypeGlassCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(38.dp)
+                        .scale(iconScale)
+                        .clip(RoundedCornerShape(11.dp))
                         .background(
-                            if (isSelected) accentColor.copy(alpha = 0.22f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                            if (isSelected) accentColor.copy(alpha = 0.26f)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
                         )
                         .border(
                             width = 1.dp,
-                            color = if (isSelected) accentColor.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(10.dp)
+                            color = if (isSelected) Color.White.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(11.dp)
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -653,17 +657,21 @@ private fun FocusTypeGlassCard(
                         imageVector = icon,
                         contentDescription = null,
                         tint = if (isSelected) selectedTextColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(19.dp)
                     )
                 }
 
-                if (glowAlpha > 0.05f) {
+                AnimatedVisibility(
+                    visible = isSelected,
+                    enter = scaleIn(spring(dampingRatio = 0.55f, stiffness = 400f)) + fadeIn(),
+                    exit = scaleOut() + fadeOut()
+                ) {
                     Box(
                         modifier = Modifier
                             .size(22.dp)
                             .clip(CircleShape)
-                            .background(accentColor.copy(alpha = 0.22f * glowAlpha))
-                            .border(1.dp, accentColor.copy(alpha = 0.6f * glowAlpha), CircleShape),
+                            .background(accentColor.copy(alpha = 0.25f))
+                            .border(1.dp, Color.White.copy(alpha = 0.5f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -692,6 +700,7 @@ private fun FocusTypeGlassCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TimerCompletionFullScreen(
     subject: String,
@@ -705,12 +714,37 @@ fun TimerCompletionFullScreen(
     onDiscard: () -> Unit
 ) {
     var reflectionNote by remember(initialNote) { mutableStateOf(initialNote) }
+    val accentColor = if (sessionType == SessionType.DEEP) Emerald500 else Amber500
     val ratingDescriptions = listOf(
-        1 to "Very Distracted (struggled to maintain attention)",
-        2 to "Somewhat Distracted (frequent interruptions)",
-        3 to "Moderate Focus (reasonable progress made)",
-        4 to "High Focus (smooth study flow)",
-        5 to "Deep Flow State (zero friction, peak concentration)"
+        1 to "Distracted • Tough session, still showed up",
+        2 to "Fragmented • Frequent interruptions",
+        3 to "Steady • Solid progress made",
+        4 to "High Focus • Smooth study flow",
+        5 to "Deep Flow • Peak concentration achieved"
+    )
+    val quickTags = listOf("Deep flow", "Zero distractions", "Milestone hit", "Needs review")
+
+    val bgGradient = Brush.verticalGradient(
+        colors = listOf(
+            accentColor.copy(alpha = 0.22f),
+            MaterialTheme.colorScheme.background,
+            MaterialTheme.colorScheme.background
+        )
+    )
+
+    val glassCardBrush = Brush.linearGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+            Color.White.copy(alpha = 0.08f),
+            MaterialTheme.colorScheme.surface.copy(alpha = 0.35f)
+        )
+    )
+    val glassBorderBrush = Brush.linearGradient(
+        colors = listOf(
+            Color.White.copy(alpha = 0.28f),
+            accentColor.copy(alpha = 0.45f),
+            Color.White.copy(alpha = 0.10f)
+        )
     )
 
     Dialog(
@@ -727,7 +761,8 @@ fun TimerCompletionFullScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 24.dp, vertical = 40.dp),
+                    .background(bgGradient)
+                    .padding(horizontal = 22.dp, vertical = 36.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
@@ -735,90 +770,173 @@ fun TimerCompletionFullScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(76.dp)
                             .clip(CircleShape)
-                            .background(Emerald500.copy(alpha = 0.16f))
-                            .border(2.dp, Emerald500, CircleShape),
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(accentColor.copy(alpha = 0.34f), Color.White.copy(alpha = 0.12f))
+                                )
+                            )
+                            .border(1.5.dp, glassBorderBrush, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Check,
+                            imageVector = Icons.Default.EmojiEvents,
                             contentDescription = null,
-                            tint = Emerald500,
+                            tint = accentColor,
                             modifier = Modifier.size(38.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                     Text(
-                        text = "Time's Up!",
+                        text = "Focus Complete!",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onBackground
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "${durationMinutes}m • ${if (sessionType == SessionType.DEEP) "Deep Focus" else "Shallow Work"} • $subject",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (sessionType == SessionType.DEEP) Emerald500 else Amber500,
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                // Middle: Focus Quality + Record Journey Note
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Rate your focus quality",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = accentColor.copy(alpha = 0.16f),
+                        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.45f))
                     ) {
-                        (1..5).forEach { star ->
-                            val isFilled = star <= currentRating
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
                             Icon(
-                                imageVector = if (isFilled) Icons.Default.Star else Icons.Default.StarBorder,
-                                contentDescription = "Star $star",
-                                tint = Amber500,
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clickable { onRatingSelected(star) }
-                                    .padding(4.dp)
+                                imageVector = if (sessionType == SessionType.DEEP) Icons.Default.Bolt else Icons.Default.Coffee,
+                                contentDescription = null,
+                                tint = accentColor,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "${durationMinutes}m • ${if (sessionType == SessionType.DEEP) "Deep Work" else "Shallow Work"} • $subject",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = accentColor
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    val description = ratingDescriptions.firstOrNull { it.first == currentRating }?.second ?: ""
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                // Middle: Glassmorphic Rating + Journey Reflection Card
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(glassCardBrush)
+                            .border(BorderStroke(1.dp, glassBorderBrush), RoundedCornerShape(20.dp))
+                            .padding(18.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = Amber500,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "RATE YOUR FOCUS QUALITY",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                (1..5).forEach { star ->
+                                    val isFilled = star <= currentRating
+                                    val starScale by animateFloatAsState(
+                                        targetValue = if (isFilled) 1.1f else 0.92f,
+                                        animationSpec = spring(dampingRatio = 0.5f, stiffness = 400f),
+                                        label = "starScale"
+                                    )
+                                    Icon(
+                                        imageVector = if (isFilled) Icons.Default.Star else Icons.Default.StarBorder,
+                                        contentDescription = "Star $star",
+                                        tint = if (isFilled) Amber500 else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .scale(starScale)
+                                            .clickable { onRatingSelected(star) }
+                                            .padding(4.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            val description = ratingDescriptions.firstOrNull { it.first == currentRating }?.second ?: ""
+                            Text(
+                                text = description,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center,
+                                color = accentColor
+                            )
+                        }
+                    }
 
-                    OutlinedTextField(
-                        value = reflectionNote,
-                        onValueChange = { reflectionNote = it },
-                        label = { Text("Record your journey (optional)") },
-                        placeholder = { Text("What did you accomplish or notice?") },
-                        leadingIcon = {
-                            Icon(imageVector = Icons.Default.EditNote, contentDescription = null)
-                        },
-                        minLines = 3,
-                        maxLines = 4,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(glassCardBrush)
+                            .border(BorderStroke(1.dp, glassBorderBrush), RoundedCornerShape(20.dp))
+                            .padding(16.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                quickTags.forEach { tag ->
+                                    val isAdded = reflectionNote.contains(tag, ignoreCase = true)
+                                    FilterChip(
+                                        selected = isAdded,
+                                        onClick = {
+                                            reflectionNote = if (isAdded) {
+                                                reflectionNote.replace(tag, "").replace("  ", " ").trim(',', ' ')
+                                            } else {
+                                                if (reflectionNote.isBlank()) tag else "${reflectionNote.trim()}, $tag"
+                                            }
+                                        },
+                                        label = { Text(tag, style = MaterialTheme.typography.labelSmall) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = accentColor.copy(alpha = 0.22f),
+                                            selectedLabelColor = accentColor
+                                        )
+                                    )
+                                }
+                            }
+                            OutlinedTextField(
+                                value = reflectionNote,
+                                onValueChange = { reflectionNote = it },
+                                label = { Text("Record your journey (optional)") },
+                                placeholder = { Text("What did you accomplish or notice?") },
+                                leadingIcon = {
+                                    Icon(imageVector = Icons.Default.EditNote, contentDescription = null)
+                                },
+                                minLines = 2,
+                                maxLines = 3,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
                 }
 
                 // Bottom: Record & Save Journey / Save Later / Discard
@@ -835,6 +953,8 @@ fun TimerCompletionFullScreen(
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Emerald600)
                     ) {
+                        Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Record & Save Journey",
                             style = MaterialTheme.typography.titleMedium,
@@ -842,29 +962,34 @@ fun TimerCompletionFullScreen(
                         )
                     }
 
-                    OutlinedButton(
-                        onClick = { onSaveLater(reflectionNote) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
-                        shape = RoundedCornerShape(16.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            text = "Save Later",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+                        OutlinedButton(
+                            onClick = { onSaveLater(reflectionNote) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.BookmarkAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Save Later", fontWeight = FontWeight.SemiBold)
+                        }
 
-                    TextButton(
-                        onClick = onDiscard,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "Discard Session",
-                            color = Rose600,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        OutlinedButton(
+                            onClick = onDiscard,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(1.dp, Rose600.copy(alpha = 0.5f))
+                        ) {
+                            Icon(imageVector = Icons.Default.DeleteOutline, contentDescription = null, tint = Rose600, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Discard", color = Rose600, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
             }

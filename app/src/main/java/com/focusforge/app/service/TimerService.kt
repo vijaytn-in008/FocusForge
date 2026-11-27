@@ -1,5 +1,6 @@
 package com.focusforge.app.service
 
+import android.app.ActivityOptions
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
@@ -8,8 +9,11 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.CountDownTimer
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.focusforge.app.FocusForgeApp
@@ -133,16 +137,39 @@ class TimerService : Service() {
         val completedState = _timerState.value
         showCompletionNotification(completedState)
         launchCompletionFullScreen(completedState)
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        // Keep FGS alive briefly so Android 14+ BAL exemption applies to the pop-up launch
+        Handler(Looper.getMainLooper()).postDelayed({
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }, 600L)
     }
 
     private fun launchCompletionFullScreen(state: TimerState) {
+        val intent = buildCompletionIntent(state)
         try {
-            val intent = buildCompletionIntent(state)
-            startActivity(intent)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                val pending = PendingIntent.getActivity(
+                    this,
+                    11,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                val opts = ActivityOptions.makeBasic()
+                    .setPendingIntentBackgroundActivityStartMode(
+                        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                    )
+                pending.send(this, 0, null, null, null, null, opts.toBundle())
+            } else {
+                startActivity(intent)
+            }
         } catch (_: Exception) {
-            // Fallback handled by high-priority full-screen completion notification
+            if (Settings.canDrawOverlays(this)) {
+                try {
+                    startActivity(intent)
+                } catch (_: Exception) {
+                    // Handled by full-screen completion notification
+                }
+            }
         }
     }
 
@@ -210,10 +237,11 @@ class TimerService : Service() {
 
         val openAppIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(MainActivity.EXTRA_NAV_DESTINATION, "timer")
         }
         val contentPendingIntent = PendingIntent.getActivity(
             this,
-            0,
+            101,
             openAppIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )

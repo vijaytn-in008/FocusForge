@@ -11,6 +11,7 @@
 
     <!-- Notification permission for Android 13+ (API 33+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <!-- Phase 2: App Blocker Permissions -->
     <!-- Usage Access to detect foreground apps -->

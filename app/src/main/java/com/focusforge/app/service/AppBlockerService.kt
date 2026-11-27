@@ -298,6 +298,7 @@ class AppBlockerService : Service() {
     private fun buildNotification(): Notification {
         val openAppIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(MainActivity.EXTRA_NAV_DESTINATION, "shield")
         }
         val contentPendingIntent = PendingIntent.getActivity(
             this,

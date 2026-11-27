@@ -678,6 +678,7 @@ class DnsVpnService : VpnService() {
     private fun buildActiveNotification(blockedToday: Int): Notification {
         val openAppIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(MainActivity.EXTRA_NAV_DESTINATION, "protection")
         }
         val contentPendingIntent = PendingIntent.getActivity(
             this,

@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -201,6 +202,9 @@ fun ProtectionScreen(
                                 text = if (uiState.isVpnRunning) "Focus rules active" else "DNS filter inactive",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
                                 color = if (uiState.isVpnRunning) Color.White else MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -213,15 +217,15 @@ fun ProtectionScreen(
                         Text(
                             text = "${uiState.todayBlockedCount} blocked today • ${uiState.pauseEventsCount} pauses",
                             style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             color = if (uiState.isVpnRunning) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Spacer(modifier = Modifier.width(8.dp))
                     Switch(
                         checked = uiState.isVpnRunning,
-                        onCheckedChange = { onToggleVpnClick(it) },
-                        thumbContent = if (uiState.isVpnRunning) {
-                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                        } else null
+                        onCheckedChange = { onToggleVpnClick(it) }
                     )
                 }
             }
