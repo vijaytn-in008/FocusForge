@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -19,10 +20,11 @@ import javax.inject.Inject
 data class PermissionState(
     val hasUsageStats: Boolean = false,
     val hasOverlayPermission: Boolean = false,
-    val isBatteryOptimizationsIgnored: Boolean = false
+    val isBatteryOptimizationsIgnored: Boolean = false,
+    val hasNotificationListener: Boolean = false
 ) {
     val allGranted: Boolean
-        get() = hasUsageStats && hasOverlayPermission && isBatteryOptimizationsIgnored
+        get() = hasUsageStats && hasOverlayPermission && isBatteryOptimizationsIgnored && hasNotificationListener
 }
 
 @HiltViewModel
@@ -37,8 +39,14 @@ class PermissionsViewModel @Inject constructor(
         _state.value = PermissionState(
             hasUsageStats = checkUsageStatsPermission(),
             hasOverlayPermission = checkOverlayPermission(),
-            isBatteryOptimizationsIgnored = checkBatteryOptimizationIgnored()
+            isBatteryOptimizationsIgnored = checkBatteryOptimizationIgnored(),
+            hasNotificationListener = checkNotificationListenerPermission()
         )
+    }
+
+    private fun checkNotificationListenerPermission(): Boolean {
+        return NotificationManagerCompat.getEnabledListenerPackages(context)
+            .contains(context.packageName)
     }
 
     private fun checkUsageStatsPermission(): Boolean {
@@ -85,5 +93,9 @@ class PermissionsViewModel @Inject constructor(
             Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
             Uri.parse("package:${context.packageName}")
         )
+    }
+
+    fun getNotificationListenerIntent(): Intent {
+        return Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
     }
 }

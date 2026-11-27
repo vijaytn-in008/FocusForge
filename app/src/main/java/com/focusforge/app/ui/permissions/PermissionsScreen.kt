@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material.icons.filled.Security
@@ -167,7 +168,20 @@ fun PermissionsScreen(
                 }
             )
 
-            // 4. Local DNS Protection (VPN) Card
+            // 4. Notification Access (Silence Blocked Apps during Focus Hours)
+            PermissionItemCard(
+                icon = Icons.Default.NotificationsOff,
+                title = "Notification Silencing",
+                description = "Mutes notifications from blocked apps during active focus hours.",
+                isGranted = state.hasNotificationListener,
+                onGrantClick = {
+                    try {
+                        context.startActivity(viewModel.getNotificationListenerIntent())
+                    } catch (_: Exception) {}
+                }
+            )
+
+            // 5. Local DNS Protection (VPN) Card
             PermissionItemCard(
                 icon = Icons.Default.Public,
                 title = "Local DNS Filter (VPN)",

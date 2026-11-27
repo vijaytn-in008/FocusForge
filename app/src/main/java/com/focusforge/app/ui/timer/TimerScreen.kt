@@ -1,11 +1,16 @@
 package com.focusforge.app.ui.timer
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,8 +67,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -422,117 +430,27 @@ fun TimerScreen(
                             ) {
                                 val isDeep = uiState.sessionType == SessionType.DEEP
 
-                                ForgeCard(
-                                    modifier = Modifier.weight(1f),
+                                FocusTypeGlassCard(
+                                    title = "Deep Work",
+                                    subtitle = "Zero-distraction focus",
+                                    icon = Icons.Default.CenterFocusStrong,
+                                    accentColor = Emerald500,
+                                    selectedTextColor = Emerald600,
+                                    isSelected = isDeep,
                                     onClick = { viewModel.onSessionTypeChanged(SessionType.DEEP) },
-                                    containerColor = if (isDeep) Emerald500.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                    borderColor = if (isDeep) Emerald500 else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                    cornerRadius = 14.dp,
-                                    elevation = if (isDeep) 3.dp else 0.dp
-                                ) {
-                                    Column(modifier = Modifier.padding(14.dp)) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(34.dp)
-                                                    .clip(RoundedCornerShape(10.dp))
-                                                    .background(
-                                                        if (isDeep) Emerald500.copy(alpha = 0.2f)
-                                                        else MaterialTheme.colorScheme.surfaceVariant
-                                                    ),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.CenterFocusStrong,
-                                                    contentDescription = null,
-                                                    tint = if (isDeep) Emerald600 else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-                                            if (isDeep) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Check,
-                                                    contentDescription = null,
-                                                    tint = Emerald600,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            }
-                                        }
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(
-                                            text = "Deep Work",
-                                            fontWeight = FontWeight.Bold,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = if (isDeep) Emerald600 else MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = "Zero-distraction focus",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
+                                    modifier = Modifier.weight(1f)
+                                )
 
-                                ForgeCard(
-                                    modifier = Modifier.weight(1f),
+                                FocusTypeGlassCard(
+                                    title = "Shallow Work",
+                                    subtitle = "Routine & admin tasks",
+                                    icon = Icons.Default.Checklist,
+                                    accentColor = Amber500,
+                                    selectedTextColor = Amber500,
+                                    isSelected = !isDeep,
                                     onClick = { viewModel.onSessionTypeChanged(SessionType.SHALLOW) },
-                                    containerColor = if (!isDeep) Amber500.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                    borderColor = if (!isDeep) Amber500 else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                    cornerRadius = 14.dp,
-                                    elevation = if (!isDeep) 3.dp else 0.dp
-                                ) {
-                                    Column(modifier = Modifier.padding(14.dp)) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(34.dp)
-                                                    .clip(RoundedCornerShape(10.dp))
-                                                    .background(
-                                                        if (!isDeep) Amber500.copy(alpha = 0.2f)
-                                                        else MaterialTheme.colorScheme.surfaceVariant
-                                                    ),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Checklist,
-                                                    contentDescription = null,
-                                                    tint = if (!isDeep) Amber500 else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-                                            if (!isDeep) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Check,
-                                                    contentDescription = null,
-                                                    tint = Amber500,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            }
-                                        }
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(
-                                            text = "Shallow Work",
-                                            fontWeight = FontWeight.Bold,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = if (!isDeep) Amber500 else MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = "Routine & admin tasks",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
                         }
                     }
@@ -625,6 +543,150 @@ fun TimerScreen(
             onSaveLater = { note -> viewModel.saveForLater(note) },
             onDiscard = viewModel::dismissRatingDialog
         )
+    }
+}
+
+@Composable
+private fun FocusTypeGlassCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    accentColor: Color,
+    selectedTextColor: Color,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val targetScale = when {
+        isPressed -> 0.95f
+        isSelected -> 1.0f
+        else -> 0.97f
+    }
+    val scale by animateFloatAsState(
+        targetValue = targetScale,
+        animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMediumLow),
+        label = "glassCardScale"
+    )
+    val glowAlpha by animateFloatAsState(
+        targetValue = if (isSelected) 1f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "glassCardGlow"
+    )
+
+    val glassBackground = if (isSelected) {
+        Brush.linearGradient(
+            colors = listOf(
+                accentColor.copy(alpha = 0.24f),
+                Color.White.copy(alpha = 0.08f),
+                accentColor.copy(alpha = 0.07f)
+            )
+        )
+    } else {
+        Brush.linearGradient(
+            colors = listOf(
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f),
+                Color.White.copy(alpha = 0.04f)
+            )
+        )
+    }
+
+    val glassBorder = if (isSelected) {
+        Brush.linearGradient(
+            colors = listOf(
+                accentColor.copy(alpha = 0.85f),
+                Color.White.copy(alpha = 0.35f),
+                accentColor.copy(alpha = 0.45f)
+            )
+        )
+    } else {
+        Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.14f),
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+            )
+        )
+    }
+
+    Box(
+        modifier = modifier
+            .scale(scale)
+            .clip(RoundedCornerShape(16.dp))
+            .background(glassBackground)
+            .border(
+                border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, glassBorder),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(14.dp)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            if (isSelected) accentColor.copy(alpha = 0.22f)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = if (isSelected) accentColor.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = if (isSelected) selectedTextColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                if (glowAlpha > 0.05f) {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(accentColor.copy(alpha = 0.22f * glowAlpha))
+                            .border(1.dp, accentColor.copy(alpha = 0.6f * glowAlpha), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = selectedTextColor,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleSmall,
+                color = if (isSelected) selectedTextColor else MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
