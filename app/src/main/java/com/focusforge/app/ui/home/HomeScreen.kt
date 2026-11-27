@@ -1,5 +1,9 @@
 package com.focusforge.app.ui.home
 
+import android.graphics.Bitmap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -26,8 +30,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Block
@@ -35,6 +41,7 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Coffee
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
@@ -92,6 +99,7 @@ import com.focusforge.app.ui.theme.Emerald700
 import com.focusforge.app.ui.theme.Slate850
 import com.focusforge.app.util.FocusShareCardGenerator
 import com.focusforge.app.util.ShareCardOptions
+import com.focusforge.app.util.ShareTimeframe
 import com.focusforge.app.util.TimeUtils
 
 @Composable
@@ -536,28 +544,63 @@ fun HomeScreen(
     if (showSharePreview) {
         var shareName by remember(uiState.userName) { mutableStateOf(uiState.userName) }
         var shareOptions by remember { mutableStateOf(ShareCardOptions()) }
+        var backgroundPhoto by remember { mutableStateOf<Bitmap?>(null) }
+
+        val photoPickerLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.PickVisualMedia()
+        ) { uri ->
+            if (uri != null) {
+                backgroundPhoto = FocusShareCardGenerator.decodePhotoFromUri(context, uri)
+            }
+        }
+
+        val timeframeSessions = when (shareOptions.timeframe) {
+            ShareTimeframe.TODAY -> uiState.todaySessions
+            ShareTimeframe.WEEK_7 -> uiState.past30DaysSessions.filter {
+                it.startTime >= System.currentTimeMillis() - 7L * 24L * 60L * 60L * 1000L
+            }
+            ShareTimeframe.MONTH_30 -> uiState.past30DaysSessions
+        }
+
+        var selectedSessionIds by remember(shareOptions.timeframe, timeframeSessions) {
+            mutableStateOf(timeframeSessions.map { it.id }.toSet())
+        }
+
+        val selectedSessions = timeframeSessions.filter { it.id in selectedSessionIds }
+        val heroTotal = when (shareOptions.timeframe) {
+            ShareTimeframe.TODAY -> uiState.todayTotalMinutes
+            ShareTimeframe.WEEK_7 -> uiState.past7DaysTotalMinutes
+            ShareTimeframe.MONTH_30 -> uiState.past30DaysTotalMinutes
+        }
+        val heroDeep = when (shareOptions.timeframe) {
+            ShareTimeframe.TODAY -> uiState.todayDeepMinutes
+            ShareTimeframe.WEEK_7 -> uiState.past7DaysDeepMinutes
+            ShareTimeframe.MONTH_30 -> uiState.past30DaysDeepMinutes
+        }
+        val heroShallow = (heroTotal - heroDeep).coerceAtLeast(0)
+
         val previewBitmap = remember(
             shareName,
             shareOptions,
-            uiState.todayTotalMinutes,
-            uiState.todayDeepMinutes,
-            uiState.shallowMinutes,
-            uiState.deepWorkRatio,
+            heroTotal,
+            heroDeep,
+            heroShallow,
             uiState.past7DaysTotalMinutes,
             uiState.past7DaysDeepMinutes,
-            uiState.todaySessions
+            selectedSessions,
+            backgroundPhoto
         ) {
             FocusShareCardGenerator.generateBitmap(
                 context = context,
                 userName = shareName,
-                todayTotalMinutes = uiState.todayTotalMinutes,
-                todayDeepMinutes = uiState.todayDeepMinutes,
-                todayShallowMinutes = uiState.shallowMinutes,
-                deepWorkRatio = uiState.deepWorkRatio,
+                heroTotalMinutes = heroTotal,
+                heroDeepMinutes = heroDeep,
+                heroShallowMinutes = heroShallow,
                 weekTotalMinutes = uiState.past7DaysTotalMinutes,
                 weekDeepMinutes = uiState.past7DaysDeepMinutes,
-                todaySessions = uiState.todaySessions,
-                options = shareOptions
+                selectedSessions = selectedSessions,
+                options = shareOptions,
+                backgroundPhoto = backgroundPhoto
             )
         }
 
@@ -565,16 +608,64 @@ fun HomeScreen(
             onDismissRequest = { showSharePreview = false },
             title = { Text("Share Focus Report", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Image(
                         bitmap = previewBitmap.asImageBitmap(),
                         contentDescription = "Focus Report Preview",
                         contentScale = ContentScale.FillWidth,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(250.dp)
+                            .height(230.dp)
                             .clip(RoundedCornerShape(14.dp))
                     )
+
+                    val chipColors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.primary
+                    )
+
+                    Text(
+                        text = "Timeframe & Background",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    @OptIn(ExperimentalLayoutApi::class)
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        ShareTimeframe.entries.forEach { tf ->
+                            FilterChip(
+                                selected = shareOptions.timeframe == tf,
+                                onClick = { shareOptions = shareOptions.copy(timeframe = tf) },
+                                label = { Text(tf.label) },
+                                colors = chipColors
+                            )
+                        }
+                        FilterChip(
+                            selected = backgroundPhoto != null,
+                            onClick = {
+                                if (backgroundPhoto != null) {
+                                    backgroundPhoto = null
+                                } else {
+                                    photoPickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                }
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                            },
+                            label = { Text(if (backgroundPhoto != null) "Clear Photo" else "Add Photo") },
+                            colors = chipColors
+                        )
+                    }
+
                     Text(
                         text = "Visible on card",
                         style = MaterialTheme.typography.labelSmall,
@@ -587,10 +678,6 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        val chipColors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.primary
-                        )
                         FilterChip(
                             selected = shareOptions.showName,
                             onClick = { shareOptions = shareOptions.copy(showName = !shareOptions.showName) },
@@ -600,7 +687,7 @@ fun HomeScreen(
                         FilterChip(
                             selected = shareOptions.showSections,
                             onClick = { shareOptions = shareOptions.copy(showSections = !shareOptions.showSections) },
-                            label = { Text("Sections") },
+                            label = { Text("Journeys") },
                             colors = chipColors
                         )
                         FilterChip(
@@ -616,6 +703,40 @@ fun HomeScreen(
                             colors = chipColors
                         )
                     }
+
+                    if (shareOptions.showSections && timeframeSessions.isNotEmpty()) {
+                        Text(
+                            text = "Select journeys to share",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        @OptIn(ExperimentalLayoutApi::class)
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            timeframeSessions.take(8).forEach { session ->
+                                val isIncluded = session.id in selectedSessionIds
+                                FilterChip(
+                                    selected = isIncluded,
+                                    onClick = {
+                                        selectedSessionIds = if (isIncluded) {
+                                            selectedSessionIds - session.id
+                                        } else {
+                                            selectedSessionIds + session.id
+                                        }
+                                    },
+                                    label = {
+                                        Text("${session.subject} (${session.durationMin}m)", maxLines = 1)
+                                    },
+                                    colors = chipColors
+                                )
+                            }
+                        }
+                    }
+
                     if (shareOptions.showName) {
                         OutlinedTextField(
                             value = shareName,

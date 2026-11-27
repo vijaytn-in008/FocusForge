@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Notifications
@@ -108,16 +110,17 @@ fun ForgeBotGuideDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 when (step) {
                     // STEP 1: Welcome & Profile Name
                     1 -> {
                         GuideContentBubble(
-                            title = "Local-First Architecture",
-                            message = "FocusForge is a private digital sanctuary designed to help students plan deliberate practice blocks and track exam readiness.\n\n" +
-                                    "All session data is persisted exclusively on this device. There are no accounts, no cloud sync, and no third-party telemetry.\n\n" +
+                            title = "Free Focus For Everyone",
+                            message = "FocusForge is a free, open-source digital sanctuary built for both studying students and anyone doing cognitively demanding work.\n\n" +
+                                    "All session data stays exclusively on this device—zero accounts, zero cloud servers, and zero telemetry.\n\n" +
                                     "Please provide a preferred name or title for your dashboard."
                         )
 
@@ -211,13 +214,30 @@ fun ForgeBotGuideDialog(
                         }
                     }
 
-                    // STEP 4: Ready to Start
+                    // STEP 4: Ownership, Clarifications & User Responsibility
                     4 -> {
+                        GuideContentBubble(
+                            title = "What FocusForge Owns",
+                            message = "• All timers, App Shield, Screen Time, notification silencing, and DNS filtering run 100% locally on your device.\n" +
+                                    "• We do NOT read browser page text or notification message content.\n" +
+                                    "• Zero readable domain names are ever saved to disk or logs.\n" +
+                                    "• Fails OPEN on DNS errors and never blocks calls, SMS, or Settings."
+                        )
+                        GuideContentBubble(
+                            title = "What We Don't Own (Your Responsibility)",
+                            message = "• Allowed DNS queries are forwarded to the upstream resolver you choose (System, Cloudflare, Quad9, or Google).\n" +
+                                    "• FocusForge cannot control ISP/router logs, browser history, third-party keyboard history, or rooted devices.\n" +
+                                    "• Securing your device PIN/biometrics, managing your blocklists, and choosing what you share on social cards are your responsibility."
+                        )
+                    }
+
+                    // STEP 5: Ready to Start
+                    5 -> {
                         GuideContentBubble(
                             title = "Ready for Session Planning",
                             message = "Your profile is configured, $displayName.\n\n" +
-                                    "To initiate a session, navigate to the Timer tab, select a discipline, define your target duration (e.g., 25 or 50 minutes), and start.\n\n" +
-                                    "You may revisit this guide at any time from the home dashboard."
+                                    "To initiate a session, navigate to the Timer tab, select Deep or Shallow Work, set your duration on the scroll wheel, and start.\n\n" +
+                                    "You may revisit this guide and our ownership clarifications at any time from the home dashboard."
                         )
                     }
                 }
@@ -229,7 +249,7 @@ fun ForgeBotGuideDialog(
                     if (step == 1) {
                         onSaveUserName(displayName)
                         step = 2
-                    } else if (step < 4) {
+                    } else if (step < 5) {
                         step++
                     } else {
                         onSaveUserName(displayName)
@@ -245,7 +265,8 @@ fun ForgeBotGuideDialog(
                     text = when (step) {
                         1 -> "Continue"
                         2 -> "Next: Background Timer"
-                        3 -> "Next"
+                        3 -> "Next: Ownership & Privacy"
+                        4 -> "Next"
                         else -> "Begin Focus Session"
                     }
                 )

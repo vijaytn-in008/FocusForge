@@ -46,6 +46,9 @@ data class HomeUiState(
     val past7DaysTotalMinutes: Int = 0,
     val past7DaysDeepMinutes: Int = 0,
     val past7DaysSessionCount: Int = 0,
+    val past30DaysTotalMinutes: Int = 0,
+    val past30DaysDeepMinutes: Int = 0,
+    val past30DaysSessions: List<Session> = emptyList(),
     val dailyFocusHistory: List<DailyFocusStat> = emptyList(),
     val todayScreenTimeMinutes: Int = 0,
     val topScreenTimeAppName: String? = null,
@@ -87,6 +90,15 @@ class HomeViewModel @Inject constructor(
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
 
+    private val thirtyDaysAgoMillis: Long
+        get() = Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_YEAR, -29)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
     init {
         refreshScreenTime()
     }
@@ -107,9 +119,9 @@ class HomeViewModel @Inject constructor(
             sessionRepository.getTodayDeepMinutes(),
             sessionRepository.getTodayTotalMinutes(),
             sessionRepository.getTodaySessions(),
-            sessionRepository.getSessionsSince(sevenDaysAgoMillis)
-        ) { deep, total, sessions, weekSessions ->
-            SessionBundle(deep, total, sessions, weekSessions)
+            sessionRepository.getSessionsSince(thirtyDaysAgoMillis)
+        ) { deep, total, sessions, monthSessions ->
+            SessionBundle(deep, total, sessions, monthSessions)
         },
         combine(
             userPreferencesRepository.getUserName(),
@@ -126,13 +138,17 @@ class HomeViewModel @Inject constructor(
             _screenTimeState
         ) { snapshot, vpnRunning, blockedSites, screenTime ->
             ProtectionBundle(snapshot.activeProfile, vpnRunning, blockedSites, screenTime.first, screenTime.second)
-        }
-    ) { sess, (userName, onboardingCompleted, isBlockerRunning, blockedCount), prot ->
-        val isManual = _manualShowBotGuide.value
+        },
+        _manualShowBotGuide
+    ) { sess, (userName, onboardingCompleted, isBlockerRunning, blockedCount), prot, isManual ->
         val showGuide = isManual ?: (!onboardingCompleted)
-        val weekTotal = sess.weekSessions.sumOf { it.durationMin }
-        val weekDeep = sess.weekSessions.filter { it.type == SessionType.DEEP }.sumOf { it.durationMin }
-        val dailyHistory = build7DayStats(sess.weekSessions)
+        val sevenDaysCutoff = sevenDaysAgoMillis
+        val weekSessions = sess.weekSessions.filter { it.startTime >= sevenDaysCutoff }
+        val weekTotal = weekSessions.sumOf { it.durationMin }
+        val weekDeep = weekSessions.filter { it.type == SessionType.DEEP }.sumOf { it.durationMin }
+        val monthTotal = sess.weekSessions.sumOf { it.durationMin }
+        val monthDeep = sess.weekSessions.filter { it.type == SessionType.DEEP }.sumOf { it.durationMin }
+        val dailyHistory = build7DayStats(weekSessions)
 
         HomeUiState(
             userName = userName,
@@ -143,7 +159,10 @@ class HomeViewModel @Inject constructor(
             todaySessions = sess.sessions,
             past7DaysTotalMinutes = weekTotal,
             past7DaysDeepMinutes = weekDeep,
-            past7DaysSessionCount = sess.weekSessions.size,
+            past7DaysSessionCount = weekSessions.size,
+            past30DaysTotalMinutes = monthTotal,
+            past30DaysDeepMinutes = monthDeep,
+            past30DaysSessions = sess.weekSessions,
             dailyFocusHistory = dailyHistory,
             todayScreenTimeMinutes = prot.screenTimeMin,
             topScreenTimeAppName = prot.topAppName,
@@ -179,6 +198,9 @@ class HomeViewModel @Inject constructor(
 
     fun dismissBotGuide() {
         _manualShowBotGuide.value = false
+        viewModelScope.launch {
+            userPreferencesRepository.setOnboardingCompleted(true)
+        }
     }
 
     private data class SessionBundle(

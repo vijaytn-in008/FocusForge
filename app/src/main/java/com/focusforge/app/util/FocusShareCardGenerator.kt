@@ -3,14 +3,18 @@ package com.focusforge.app.util
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ImageDecoder
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
+import android.net.Uri
+import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.focusforge.app.R
@@ -22,7 +26,14 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+enum class ShareTimeframe(val label: String, val heroTitle: String, val reportTitle: String) {
+    TODAY("Today", "TODAY'S FOCUS TIME", "Daily Focus Report"),
+    WEEK_7("7 Days", "7-DAY FOCUS TIME", "7-Day Focus Report"),
+    MONTH_30("30 Days", "30-DAY FOCUS TIME", "Monthly Focus Report")
+}
+
 data class ShareCardOptions(
+    val timeframe: ShareTimeframe = ShareTimeframe.TODAY,
     val showName: Boolean = true,
     val showSections: Boolean = true,
     val showWeeklyTotal: Boolean = true,
@@ -30,55 +41,105 @@ data class ShareCardOptions(
 )
 
 /**
- * Generates a high-resolution (1080x1350) social-ready FocusForge daily report card
- * with the app logo, user's name, daily focus time, Deep/Shallow split, and session highlights.
+ * Generates a high-resolution (1080x1350) social-ready FocusForge report card
+ * with optional user background photo, logo, user's name, timeframe stats, and selected journeys.
  */
 object FocusShareCardGenerator {
 
     private const val APP_INSTALL_URL = "https://github.com/vijaytn-in008/FocusForge/releases"
 
+    fun decodePhotoFromUri(context: Context, uri: Uri): Bitmap? {
+        return try {
+            val raw = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val source = ImageDecoder.createSource(context.contentResolver, uri)
+                ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                    val targetW = 1080
+                    val sample = (info.size.width / targetW).coerceAtLeast(1)
+                    decoder.setTargetSampleSize(sample)
+                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                }
+            } else {
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream)
+                }
+            }
+            raw
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     fun generateBitmap(
         context: Context,
         userName: String,
-        todayTotalMinutes: Int,
-        todayDeepMinutes: Int,
-        todayShallowMinutes: Int,
-        deepWorkRatio: Float,
+        heroTotalMinutes: Int,
+        heroDeepMinutes: Int,
+        heroShallowMinutes: Int,
         weekTotalMinutes: Int,
         weekDeepMinutes: Int,
-        todaySessions: List<Session>,
-        options: ShareCardOptions = ShareCardOptions()
+        selectedSessions: List<Session>,
+        options: ShareCardOptions = ShareCardOptions(),
+        backgroundPhoto: Bitmap? = null
     ): Bitmap {
         val width = 1080
         val height = 1350
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        // 1. Deep Sanctuary Slate + Emerald Gradient Background
-        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(
-                0f, 0f, width.toFloat(), height.toFloat(),
-                intArrayOf(
-                    Color.parseColor("#0B1324"),
-                    Color.parseColor("#0F2420"),
-                    Color.parseColor("#0F172A")
-                ),
-                floatArrayOf(0f, 0.42f, 1f),
-                Shader.TileMode.CLAMP
-            )
-        }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
+        val deepWorkRatio = if (heroTotalMinutes > 0) heroDeepMinutes.toFloat() / heroTotalMinutes.toFloat() else 0f
 
-        // Subtle emerald top glow orb
-        val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = android.graphics.RadialGradient(
-                width * 0.8f, 140f, 480f,
-                intArrayOf(Color.argb(65, 16, 185, 129), Color.TRANSPARENT),
-                null,
-                Shader.TileMode.CLAMP
+        // 1. Background: User's Photo (center-cropped + frosted dark scrim) OR Sanctuary Gradient
+        if (backgroundPhoto != null) {
+            val scale = maxOf(
+                width.toFloat() / backgroundPhoto.width.toFloat(),
+                height.toFloat() / backgroundPhoto.height.toFloat()
             )
+            val scaledW = backgroundPhoto.width * scale
+            val scaledH = backgroundPhoto.height * scale
+            val left = (width - scaledW) / 2f
+            val top = (height - scaledH) / 2f
+            val destRect = RectF(left, top, left + scaledW, top + scaledH)
+            canvas.drawBitmap(backgroundPhoto, null, destRect, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+
+            // Dark translucent scrim so glass cards remain crisp & readable
+            val scrimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = LinearGradient(
+                    0f, 0f, 0f, height.toFloat(),
+                    intArrayOf(
+                        Color.argb(175, 11, 19, 36),
+                        Color.argb(150, 15, 23, 42),
+                        Color.argb(200, 11, 19, 36)
+                    ),
+                    null,
+                    Shader.TileMode.CLAMP
+                )
+            }
+            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrimPaint)
+        } else {
+            val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = LinearGradient(
+                    0f, 0f, width.toFloat(), height.toFloat(),
+                    intArrayOf(
+                        Color.parseColor("#0B1324"),
+                        Color.parseColor("#0F2420"),
+                        Color.parseColor("#0F172A")
+                    ),
+                    floatArrayOf(0f, 0.42f, 1f),
+                    Shader.TileMode.CLAMP
+                )
+            }
+            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
+
+            val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = android.graphics.RadialGradient(
+                    width * 0.8f, 140f, 480f,
+                    intArrayOf(Color.argb(65, 16, 185, 129), Color.TRANSPARENT),
+                    null,
+                    Shader.TileMode.CLAMP
+                )
+            }
+            canvas.drawCircle(width * 0.8f, 140f, 480f, glowPaint)
         }
-        canvas.drawCircle(width * 0.8f, 140f, 480f, glowPaint)
 
         val pad = 72f
 
@@ -129,15 +190,15 @@ object FocusShareCardGenerator {
 
         // 3. User Name Headline
         val displayUser = if (options.showName) userName.trim() else ""
-        val titleText = if (displayUser.isNotEmpty()) "$displayUser's Focus Report" else "Daily Focus Report"
+        val titleText = if (displayUser.isNotEmpty()) "$displayUser's ${options.timeframe.reportTitle}" else options.timeframe.reportTitle
         val headlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#F8FAFC")
-            textSize = 54f
+            textSize = 52f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
         canvas.drawText(titleText, pad, 248f, headlinePaint)
 
-        // 4. Hero Glass Card (Daily Focus Time + Deep/Shallow Split)
+        // 4. Hero Glass Card (Focus Time + Deep/Shallow Split)
         val heroRect = RectF(pad, 292f, width - pad, 650f)
         drawGlassCard(canvas, heroRect, Color.parseColor("#10B981"))
 
@@ -147,14 +208,14 @@ object FocusShareCardGenerator {
             letterSpacing = 0.12f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
-        canvas.drawText("TODAY'S FOCUS TIME", heroRect.left + 44f, heroRect.top + 66f, labelPaint)
+        canvas.drawText(options.timeframe.heroTitle, heroRect.left + 44f, heroRect.top + 66f, labelPaint)
 
         val heroTimePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
             textSize = 112f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
-        canvas.drawText(TimeUtils.formatMinutesToDuration(todayTotalMinutes), heroRect.left + 44f, heroRect.top + 190f, heroTimePaint)
+        canvas.drawText(TimeUtils.formatMinutesToDuration(heroTotalMinutes), heroRect.left + 44f, heroRect.top + 190f, heroTimePaint)
 
         // Progress Track
         val barLeft = heroRect.left + 44f
@@ -165,7 +226,7 @@ object FocusShareCardGenerator {
         canvas.drawRoundRect(RectF(barLeft, barTop, barRight, barBottom), 10f, 10f, trackPaint)
 
         val clampedRatio = deepWorkRatio.coerceIn(0f, 1f)
-        if (todayTotalMinutes > 0) {
+        if (heroTotalMinutes > 0) {
             val splitX = barLeft + (barRight - barLeft) * clampedRatio
             if (clampedRatio > 0f) {
                 val deepPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#34D399") }
@@ -189,13 +250,13 @@ object FocusShareCardGenerator {
             textAlign = Paint.Align.RIGHT
         }
         canvas.drawText(
-            "Deep: ${TimeUtils.formatMinutesToDuration(todayDeepMinutes)} (${(clampedRatio * 100).toInt()}%)",
+            "Deep: ${TimeUtils.formatMinutesToDuration(heroDeepMinutes)} (${(clampedRatio * 100).toInt()}%)",
             barLeft,
             barBottom + 54f,
             deepLegendPaint
         )
         canvas.drawText(
-            "Shallow: ${TimeUtils.formatMinutesToDuration(todayShallowMinutes)}",
+            "Shallow: ${TimeUtils.formatMinutesToDuration(heroShallowMinutes)}",
             barRight,
             barBottom + 54f,
             shallowLegendPaint
@@ -211,7 +272,7 @@ object FocusShareCardGenerator {
         drawGlassCard(canvas, rightStatRect, Color.parseColor("#F59E0B"))
 
         val statLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#94A3B8")
+            color = Color.parseColor("#CBD5E1")
             textSize = 24f
             letterSpacing = 0.08f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
@@ -222,17 +283,17 @@ object FocusShareCardGenerator {
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
         val statSubPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#CBD5E1")
+            color = Color.parseColor("#E2E8F0")
             textSize = 26f
         }
 
         val avgRating = when {
             !options.showRating -> "Completed blocks"
-            todaySessions.isNotEmpty() -> String.format(Locale.getDefault(), "%.1f ★ avg focus", todaySessions.map { it.focusRating }.average())
+            selectedSessions.isNotEmpty() -> String.format(Locale.getDefault(), "%.1f ★ avg focus", selectedSessions.map { it.focusRating }.average())
             else -> "Ready to forge"
         }
-        canvas.drawText("SESSIONS TODAY", leftStatRect.left + 36f, leftStatRect.top + 56f, statLabelPaint)
-        canvas.drawText("${todaySessions.size}", leftStatRect.left + 36f, leftStatRect.top + 122f, statValPaint)
+        canvas.drawText("SHARED SESSIONS", leftStatRect.left + 36f, leftStatRect.top + 56f, statLabelPaint)
+        canvas.drawText("${selectedSessions.size}", leftStatRect.left + 36f, leftStatRect.top + 122f, statValPaint)
         canvas.drawText(avgRating, leftStatRect.left + 36f, leftStatRect.top + 168f, statSubPaint)
 
         if (options.showWeeklyTotal) {
@@ -242,32 +303,32 @@ object FocusShareCardGenerator {
         } else {
             canvas.drawText("DEEP WORK RATIO", rightStatRect.left + 36f, rightStatRect.top + 56f, statLabelPaint)
             canvas.drawText("${(clampedRatio * 100).toInt()}%", rightStatRect.left + 36f, rightStatRect.top + 122f, statValPaint)
-            canvas.drawText("of today's focus", rightStatRect.left + 36f, rightStatRect.top + 168f, statSubPaint)
+            canvas.drawText("in ${options.timeframe.label.lowercase()}", rightStatRect.left + 36f, rightStatRect.top + 168f, statSubPaint)
         }
 
         // 6. Session Highlights Card
         val listRect = RectF(pad, 922f, width - pad, 1220f)
         drawGlassCard(canvas, listRect, Color.parseColor("#64748B"))
-        canvas.drawText("TODAY'S FOCUS SECTIONS", listRect.left + 36f, listRect.top + 54f, statLabelPaint)
+        canvas.drawText("FOCUS JOURNEY HIGHLIGHTS", listRect.left + 36f, listRect.top + 54f, statLabelPaint)
 
-        val topSessions = todaySessions.take(3)
+        val topSessions = selectedSessions.take(3)
         if (!options.showSections) {
             val privatePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#94A3B8")
+                color = Color.parseColor("#CBD5E1")
                 textSize = 30f
             }
             canvas.drawText(
-                "Session subjects hidden • ${todaySessions.size} focus block(s) logged",
+                "Journey details hidden • ${selectedSessions.size} block(s) completed",
                 listRect.left + 36f,
                 listRect.top + 140f,
                 privatePaint
             )
         } else if (topSessions.isEmpty()) {
             val emptyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#94A3B8")
+                color = Color.parseColor("#CBD5E1")
                 textSize = 30f
             }
-            canvas.drawText("No sessions logged yet today — start your first block!", listRect.left + 36f, listRect.top + 140f, emptyPaint)
+            canvas.drawText("Select journeys to highlight them here.", listRect.left + 36f, listRect.top + 140f, emptyPaint)
         } else {
             val rowNamePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.WHITE
