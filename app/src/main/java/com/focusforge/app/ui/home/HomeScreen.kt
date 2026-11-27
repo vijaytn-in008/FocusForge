@@ -13,6 +13,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,6 +46,8 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -87,6 +91,7 @@ import com.focusforge.app.ui.theme.Emerald600
 import com.focusforge.app.ui.theme.Emerald700
 import com.focusforge.app.ui.theme.Slate850
 import com.focusforge.app.util.FocusShareCardGenerator
+import com.focusforge.app.util.ShareCardOptions
 import com.focusforge.app.util.TimeUtils
 
 @Composable
@@ -530,8 +535,10 @@ fun HomeScreen(
 
     if (showSharePreview) {
         var shareName by remember(uiState.userName) { mutableStateOf(uiState.userName) }
+        var shareOptions by remember { mutableStateOf(ShareCardOptions()) }
         val previewBitmap = remember(
             shareName,
+            shareOptions,
             uiState.todayTotalMinutes,
             uiState.todayDeepMinutes,
             uiState.shallowMinutes,
@@ -549,7 +556,8 @@ fun HomeScreen(
                 deepWorkRatio = uiState.deepWorkRatio,
                 weekTotalMinutes = uiState.past7DaysTotalMinutes,
                 weekDeepMinutes = uiState.past7DaysDeepMinutes,
-                todaySessions = uiState.todaySessions
+                todaySessions = uiState.todaySessions,
+                options = shareOptions
             )
         }
 
@@ -557,25 +565,68 @@ fun HomeScreen(
             onDismissRequest = { showSharePreview = false },
             title = { Text("Share Focus Report", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Image(
                         bitmap = previewBitmap.asImageBitmap(),
                         contentDescription = "Focus Report Preview",
                         contentScale = ContentScale.FillWidth,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(280.dp)
+                            .height(250.dp)
                             .clip(RoundedCornerShape(14.dp))
                     )
-                    OutlinedTextField(
-                        value = shareName,
-                        onValueChange = { shareName = it },
-                        label = { Text("Your Name on Card") },
-                        placeholder = { Text("e.g. Vijay") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
+                    Text(
+                        text = "Visible on card",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    @OptIn(ExperimentalLayoutApi::class)
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val chipColors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.primary
+                        )
+                        FilterChip(
+                            selected = shareOptions.showName,
+                            onClick = { shareOptions = shareOptions.copy(showName = !shareOptions.showName) },
+                            label = { Text("Name") },
+                            colors = chipColors
+                        )
+                        FilterChip(
+                            selected = shareOptions.showSections,
+                            onClick = { shareOptions = shareOptions.copy(showSections = !shareOptions.showSections) },
+                            label = { Text("Sections") },
+                            colors = chipColors
+                        )
+                        FilterChip(
+                            selected = shareOptions.showWeeklyTotal,
+                            onClick = { shareOptions = shareOptions.copy(showWeeklyTotal = !shareOptions.showWeeklyTotal) },
+                            label = { Text("7-Day") },
+                            colors = chipColors
+                        )
+                        FilterChip(
+                            selected = shareOptions.showRating,
+                            onClick = { shareOptions = shareOptions.copy(showRating = !shareOptions.showRating) },
+                            label = { Text("Rating") },
+                            colors = chipColors
+                        )
+                    }
+                    if (shareOptions.showName) {
+                        OutlinedTextField(
+                            value = shareName,
+                            onValueChange = { shareName = it },
+                            label = { Text("Your Name on Card") },
+                            placeholder = { Text("e.g. Vijay") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             },
             confirmButton = {

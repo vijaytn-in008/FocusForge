@@ -22,11 +22,20 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+data class ShareCardOptions(
+    val showName: Boolean = true,
+    val showSections: Boolean = true,
+    val showWeeklyTotal: Boolean = true,
+    val showRating: Boolean = true
+)
+
 /**
  * Generates a high-resolution (1080x1350) social-ready FocusForge daily report card
  * with the app logo, user's name, daily focus time, Deep/Shallow split, and session highlights.
  */
 object FocusShareCardGenerator {
+
+    private const val APP_INSTALL_URL = "https://github.com/vijaytn-in008/FocusForge/releases"
 
     fun generateBitmap(
         context: Context,
@@ -37,7 +46,8 @@ object FocusShareCardGenerator {
         deepWorkRatio: Float,
         weekTotalMinutes: Int,
         weekDeepMinutes: Int,
-        todaySessions: List<Session>
+        todaySessions: List<Session>,
+        options: ShareCardOptions = ShareCardOptions()
     ): Bitmap {
         val width = 1080
         val height = 1350
@@ -118,7 +128,7 @@ object FocusShareCardGenerator {
         canvas.drawText(dateStr, pad + logoSize + 24f, 144f, subBrandPaint)
 
         // 3. User Name Headline
-        val displayUser = userName.trim()
+        val displayUser = if (options.showName) userName.trim() else ""
         val titleText = if (displayUser.isNotEmpty()) "$displayUser's Focus Report" else "Daily Focus Report"
         val headlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#F8FAFC")
@@ -216,18 +226,24 @@ object FocusShareCardGenerator {
             textSize = 26f
         }
 
-        val avgRating = if (todaySessions.isNotEmpty()) {
-            String.format(Locale.getDefault(), "%.1f ★ avg focus", todaySessions.map { it.focusRating }.average())
-        } else {
-            "Ready to forge"
+        val avgRating = when {
+            !options.showRating -> "Completed blocks"
+            todaySessions.isNotEmpty() -> String.format(Locale.getDefault(), "%.1f ★ avg focus", todaySessions.map { it.focusRating }.average())
+            else -> "Ready to forge"
         }
         canvas.drawText("SESSIONS TODAY", leftStatRect.left + 36f, leftStatRect.top + 56f, statLabelPaint)
         canvas.drawText("${todaySessions.size}", leftStatRect.left + 36f, leftStatRect.top + 122f, statValPaint)
         canvas.drawText(avgRating, leftStatRect.left + 36f, leftStatRect.top + 168f, statSubPaint)
 
-        canvas.drawText("7-DAY FOCUS", rightStatRect.left + 36f, rightStatRect.top + 56f, statLabelPaint)
-        canvas.drawText(TimeUtils.formatMinutesToDuration(weekTotalMinutes), rightStatRect.left + 36f, rightStatRect.top + 122f, statValPaint)
-        canvas.drawText("${TimeUtils.formatMinutesToDuration(weekDeepMinutes)} deep", rightStatRect.left + 36f, rightStatRect.top + 168f, statSubPaint)
+        if (options.showWeeklyTotal) {
+            canvas.drawText("7-DAY FOCUS", rightStatRect.left + 36f, rightStatRect.top + 56f, statLabelPaint)
+            canvas.drawText(TimeUtils.formatMinutesToDuration(weekTotalMinutes), rightStatRect.left + 36f, rightStatRect.top + 122f, statValPaint)
+            canvas.drawText("${TimeUtils.formatMinutesToDuration(weekDeepMinutes)} deep", rightStatRect.left + 36f, rightStatRect.top + 168f, statSubPaint)
+        } else {
+            canvas.drawText("DEEP WORK RATIO", rightStatRect.left + 36f, rightStatRect.top + 56f, statLabelPaint)
+            canvas.drawText("${(clampedRatio * 100).toInt()}%", rightStatRect.left + 36f, rightStatRect.top + 122f, statValPaint)
+            canvas.drawText("of today's focus", rightStatRect.left + 36f, rightStatRect.top + 168f, statSubPaint)
+        }
 
         // 6. Session Highlights Card
         val listRect = RectF(pad, 922f, width - pad, 1220f)
@@ -235,7 +251,18 @@ object FocusShareCardGenerator {
         canvas.drawText("TODAY'S FOCUS SECTIONS", listRect.left + 36f, listRect.top + 54f, statLabelPaint)
 
         val topSessions = todaySessions.take(3)
-        if (topSessions.isEmpty()) {
+        if (!options.showSections) {
+            val privatePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#94A3B8")
+                textSize = 30f
+            }
+            canvas.drawText(
+                "Session subjects hidden • ${todaySessions.size} focus block(s) logged",
+                listRect.left + 36f,
+                listRect.top + 140f,
+                privatePaint
+            )
+        } else if (topSessions.isEmpty()) {
             val emptyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#94A3B8")
                 textSize = 30f
@@ -266,13 +293,13 @@ object FocusShareCardGenerator {
             }
         }
 
-        // 7. Footer
+        // 7. Footer with App Install Link
         val footerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#64748B")
+            color = Color.parseColor("#94A3B8")
             textSize = 24f
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("Forged on-device with FocusForge • Digital Sanctuary", width / 2f, 1292f, footerPaint)
+        canvas.drawText("Get FocusForge • github.com/vijaytn-in008/FocusForge", width / 2f, 1292f, footerPaint)
 
         return bitmap
     }
@@ -319,7 +346,10 @@ object FocusShareCardGenerator {
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
             type = "image/png"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_TEXT, "My daily focus report from FocusForge!")
+            putExtra(
+                Intent.EXTRA_TEXT,
+                "Forged my focus today with FocusForge! Get the app here: $APP_INSTALL_URL"
+            )
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(Intent.createChooser(shareIntent, "Share Focus Report"))
