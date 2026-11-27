@@ -10,6 +10,7 @@ import com.focusforge.app.service.TimerService
 import com.focusforge.app.service.TimerState
 import com.focusforge.app.service.TimerStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +19,15 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.math.ceil
+
+data class PendingJourney(
+    val subject: String,
+    val topic: String,
+    val startTimeMillis: Long,
+    val durationMin: Int,
+    val sessionType: SessionType,
+    val note: String = ""
+)
 
 data class TimerUiState(
     val subjectInput: String = "General Focus",
@@ -28,7 +38,11 @@ data class TimerUiState(
     val sessionType: SessionType = SessionType.DEEP,
     val timerServiceState: TimerState = TimerState(),
     val showRatingDialog: Boolean = false,
-    val selectedRating: Int = 5
+    val selectedRating: Int = 5,
+    val completedSubject: String = "General Focus",
+    val completedDurationMin: Int = 25,
+    val completedSessionType: SessionType = SessionType.DEEP,
+    val pendingJourney: PendingJourney? = null
 )
 
 private data class FormState(
@@ -39,15 +53,21 @@ private data class FormState(
     val customDurationInput: String = "25",
     val sessionType: SessionType = SessionType.DEEP,
     val showRatingDialog: Boolean = false,
-    val selectedRating: Int = 5
+    val selectedRating: Int = 5,
+    val completedSubject: String = "General Focus",
+    val completedDurationMin: Int = 25,
+    val completedSessionType: SessionType = SessionType.DEEP,
+    val pendingJourney: PendingJourney? = null
 )
 
 @HiltViewModel
 class TimerViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val sessionRepository: SessionRepository
 ) : ViewModel() {
 
-    private val _formState = MutableStateFlow(FormState())
+    private val prefs = appContext.getSharedPreferences("focusforge_pending_journey", Context.MODE_PRIVATE)
+    private val _formState = MutableStateFlow(FormState(pendingJourney = loadPendingJourney()))
     private var completedSessionDetails: TimerState? = null
     private var lastSavedStartTimeMillis: Long = -1L
 
@@ -60,7 +80,13 @@ class TimerViewModel @Inject constructor(
                     !_formState.value.showRatingDialog
                 ) {
                     completedSessionDetails = serviceState
-                    _formState.value = _formState.value.copy(showRatingDialog = true)
+                    val completedMin = maxOf(1, serviceState.totalSeconds / 60)
+                    _formState.value = _formState.value.copy(
+                        showRatingDialog = true,
+                        completedSubject = serviceState.subject.ifBlank { "General Focus" },
+                        completedDurationMin = completedMin,
+                        completedSessionType = serviceState.sessionType
+                    )
                 }
             }
         }
@@ -79,7 +105,11 @@ class TimerViewModel @Inject constructor(
             sessionType = form.sessionType,
             timerServiceState = serviceState,
             showRatingDialog = form.showRatingDialog,
-            selectedRating = form.selectedRating
+            selectedRating = form.selectedRating,
+            completedSubject = form.completedSubject,
+            completedDurationMin = form.completedDurationMin,
+            completedSessionType = form.completedSessionType,
+            pendingJourney = form.pendingJourney
         )
     }.stateIn(
         scope = viewModelScope,
@@ -213,8 +243,28 @@ class TimerViewModel @Inject constructor(
         }
     }
 
-    fun saveCompletedSession(rating: Int) {
+    fun saveCompletedSession(rating: Int, reflectionNote: String = "") {
+        val pending = _formState.value.pendingJourney
         val sessionToSave = completedSessionDetails ?: TimerService.timerState.value
+
+        if (pending != null && completedSessionDetails == null && sessionToSave.status == TimerStatus.IDLE) {
+            clearPendingJourney()
+            _formState.value = _formState.value.copy(showRatingDialog = false, pendingJourney = null)
+            viewModelScope.launch {
+                sessionRepository.saveSession(
+                    Session(
+                        subject = pending.subject.ifBlank { "General Focus" },
+                        topic = combineTopicAndNote(pending.topic, reflectionNote.ifBlank { pending.note }),
+                        startTime = pending.startTimeMillis,
+                        durationMin = pending.durationMin,
+                        focusRating = rating.coerceIn(1, 5),
+                        type = pending.sessionType
+                    )
+                )
+            }
+            return
+        }
+
         if (sessionToSave.status == TimerStatus.IDLE ||
             (sessionToSave.startTimeMillis > 0L && sessionToSave.startTimeMillis == lastSavedStartTimeMillis)
         ) {
@@ -225,7 +275,8 @@ class TimerViewModel @Inject constructor(
         }
 
         lastSavedStartTimeMillis = sessionToSave.startTimeMillis
-        _formState.value = _formState.value.copy(showRatingDialog = false)
+        clearPendingJourney()
+        _formState.value = _formState.value.copy(showRatingDialog = false, pendingJourney = null)
         completedSessionDetails = null
         TimerService.resetState()
 
@@ -244,7 +295,7 @@ class TimerViewModel @Inject constructor(
             sessionRepository.saveSession(
                 Session(
                     subject = sessionToSave.subject.ifBlank { "General Focus" },
-                    topic = sessionToSave.topic,
+                    topic = combineTopicAndNote(sessionToSave.topic, reflectionNote),
                     startTime = startTime,
                     durationMin = durationMin,
                     focusRating = rating.coerceIn(1, 5),
@@ -254,10 +305,94 @@ class TimerViewModel @Inject constructor(
         }
     }
 
-    fun dismissRatingDialog() {
-        lastSavedStartTimeMillis = completedSessionDetails?.startTimeMillis ?: -1L
-        _formState.value = _formState.value.copy(showRatingDialog = false)
+    fun saveForLater(reflectionNote: String = "") {
+        val sessionToDefer = completedSessionDetails ?: TimerService.timerState.value
+        if (sessionToDefer.status != TimerStatus.IDLE) {
+            val elapsedSec = (sessionToDefer.totalSeconds - sessionToDefer.remainingSeconds).coerceAtLeast(0)
+            val durationMin = if (sessionToDefer.status == TimerStatus.COMPLETED || sessionToDefer.remainingSeconds == 0) {
+                maxOf(1, sessionToDefer.totalSeconds / 60)
+            } else {
+                maxOf(1, ceil(elapsedSec / 60.0).toInt())
+            }
+            val startTime = if (sessionToDefer.startTimeMillis > 0L) {
+                sessionToDefer.startTimeMillis
+            } else {
+                System.currentTimeMillis() - (durationMin * 60 * 1000L)
+            }
+            val pending = PendingJourney(
+                subject = sessionToDefer.subject.ifBlank { "General Focus" },
+                topic = sessionToDefer.topic,
+                startTimeMillis = startTime,
+                durationMin = durationMin,
+                sessionType = sessionToDefer.sessionType,
+                note = reflectionNote.trim()
+            )
+            persistPendingJourney(pending)
+            lastSavedStartTimeMillis = sessionToDefer.startTimeMillis
+            _formState.value = _formState.value.copy(
+                showRatingDialog = false,
+                pendingJourney = pending
+            )
+        } else {
+            _formState.value = _formState.value.copy(showRatingDialog = false)
+        }
         completedSessionDetails = null
         TimerService.resetState()
+    }
+
+    fun openPendingJourney() {
+        val pending = _formState.value.pendingJourney ?: return
+        _formState.value = _formState.value.copy(
+            showRatingDialog = true,
+            completedSubject = pending.subject,
+            completedDurationMin = pending.durationMin,
+            completedSessionType = pending.sessionType
+        )
+    }
+
+    fun dismissRatingDialog() {
+        lastSavedStartTimeMillis = completedSessionDetails?.startTimeMillis ?: -1L
+        clearPendingJourney()
+        _formState.value = _formState.value.copy(showRatingDialog = false, pendingJourney = null)
+        completedSessionDetails = null
+        TimerService.resetState()
+    }
+
+    private fun combineTopicAndNote(topic: String, note: String): String {
+        val cleanTopic = topic.trim()
+        val cleanNote = note.trim()
+        return when {
+            cleanTopic.isNotEmpty() && cleanNote.isNotEmpty() -> "$cleanTopic — $cleanNote"
+            cleanNote.isNotEmpty() -> cleanNote
+            else -> cleanTopic
+        }
+    }
+
+    private fun persistPendingJourney(pending: PendingJourney) {
+        prefs.edit()
+            .putBoolean("has_pending", true)
+            .putString("subject", pending.subject)
+            .putString("topic", pending.topic)
+            .putLong("startTimeMillis", pending.startTimeMillis)
+            .putInt("durationMin", pending.durationMin)
+            .putString("sessionType", pending.sessionType.name)
+            .putString("note", pending.note)
+            .apply()
+    }
+
+    private fun clearPendingJourney() {
+        prefs.edit().clear().apply()
+    }
+
+    private fun loadPendingJourney(): PendingJourney? {
+        if (!prefs.getBoolean("has_pending", false)) return null
+        val subject = prefs.getString("subject", "General Focus") ?: "General Focus"
+        val topic = prefs.getString("topic", "") ?: ""
+        val startTime = prefs.getLong("startTimeMillis", 0L)
+        val durationMin = prefs.getInt("durationMin", 25)
+        val typeName = prefs.getString("sessionType", SessionType.DEEP.name) ?: SessionType.DEEP.name
+        val note = prefs.getString("note", "") ?: ""
+        val sessionType = runCatching { SessionType.valueOf(typeName) }.getOrDefault(SessionType.DEEP)
+        return PendingJourney(subject, topic, startTime, durationMin, sessionType, note)
     }
 }

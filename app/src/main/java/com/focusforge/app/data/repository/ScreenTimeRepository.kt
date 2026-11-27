@@ -9,10 +9,15 @@ import com.focusforge.app.data.model.AppCategoryMedium
 import com.focusforge.app.data.model.AppUsageStat
 import com.focusforge.app.data.model.CategoryUsageStat
 import com.focusforge.app.data.model.DailyScreenTimeSummary
+import com.focusforge.app.data.model.DayScreenTimeEntry
+import com.focusforge.app.data.model.ScreenTimeOverview
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.max
@@ -20,6 +25,7 @@ import kotlin.math.min
 
 interface ScreenTimeRepository {
     suspend fun getTodayScreenTimeSummary(): DailyScreenTimeSummary
+    suspend fun getScreenTimeOverview(): ScreenTimeOverview
 }
 
 private data class TimeInterval(val start: Long, val end: Long)
@@ -41,14 +47,136 @@ class ScreenTimeRepositoryImpl @Inject constructor(
         }
         val startTime = calendar.timeInMillis
         val endTime = System.currentTimeMillis()
+        computeSummaryForWindow(usageStatsManager, startTime, endTime)
+    }
 
-        // 1. Query raw usage events for the day to accurately reconstruct wall-clock time
+    override suspend fun getScreenTimeOverview(): ScreenTimeOverview = withContext(Dispatchers.IO) {
+        val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+            ?: return@withContext ScreenTimeOverview(
+                todaySummary = DailyScreenTimeSummary(0L, 0L, emptyList(), emptyList(), null),
+                lastFiveDays = emptyList(),
+                maxDayEntry = null,
+                overallMaxApp = null
+            )
+
+        val now = System.currentTimeMillis()
+        val dayFmt = SimpleDateFormat("EEE", Locale.getDefault())
+        val dateFmt = SimpleDateFormat("MMM d", Locale.getDefault())
+        val entries = mutableListOf<DayScreenTimeEntry>()
+
+        // Build last 5 days ordered oldest -> today (offset 4 down to 0)
+        for (daysAgo in 4 downTo 0) {
+            val cal = Calendar.getInstance().apply {
+                add(Calendar.DAY_OF_YEAR, -daysAgo)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            val dayStart = cal.timeInMillis
+            val dayEnd = if (daysAgo == 0) {
+                now
+            } else {
+                (cal.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }.timeInMillis - 1L
+            }
+            val summary = computeSummaryForWindow(usageStatsManager, dayStart, dayEnd)
+            val label = when (daysAgo) {
+                0 -> "Today"
+                1 -> "Yest"
+                else -> dayFmt.format(Date(dayStart))
+            }
+            entries.add(
+                DayScreenTimeEntry(
+                    dayLabel = label,
+                    dateLabel = dateFmt.format(Date(dayStart)),
+                    dayStartMillis = dayStart,
+                    summary = summary
+                )
+            )
+        }
+
+        val todaySummary = entries.last().summary
+        val maxDayEntry = entries.maxByOrNull { it.summary.totalScreenTimeMillis }
+
+        // Overall max app across the past 30 days (with fallback to 5-day aggregate)
+        val overallMaxApp = findOverallMaxApp(usageStatsManager, now, entries)
+
+        ScreenTimeOverview(
+            todaySummary = todaySummary,
+            lastFiveDays = entries,
+            maxDayEntry = maxDayEntry,
+            overallMaxApp = overallMaxApp
+        )
+    }
+
+    private fun findOverallMaxApp(
+        usageStatsManager: UsageStatsManager,
+        now: Long,
+        fiveDayEntries: List<DayScreenTimeEntry>
+    ): AppUsageStat? {
+        val thirtyDaysAgo = now - 30L * 24L * 60L * 60L * 1000L
+        val stats = try {
+            usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_MONTHLY, thirtyDaysAgo, now)
+        } catch (_: Exception) {
+            null
+        }
+        val pm = context.packageManager
+        val aggregated = mutableMapOf<String, Long>()
+        stats?.forEach { stat ->
+            val pkg = stat.packageName ?: return@forEach
+            if (isCoreSystemPackage(pkg)) return@forEach
+            val fg = stat.totalTimeInForeground
+            if (fg > 0L) {
+                aggregated[pkg] = (aggregated[pkg] ?: 0L) + fg
+            }
+        }
+
+        val topEntry = aggregated.maxByOrNull { it.value }
+        if (topEntry != null && topEntry.value >= 30_000L) {
+            val appInfo = try {
+                pm.getApplicationInfo(topEntry.key, 0)
+            } catch (_: Exception) {
+                null
+            }
+            val appName = if (appInfo != null) pm.getApplicationLabel(appInfo).toString() else topEntry.key
+            val iconDrawable = try {
+                appInfo?.loadIcon(pm)
+            } catch (_: Exception) {
+                null
+            }
+            return AppUsageStat(
+                packageName = topEntry.key,
+                appName = appName,
+                iconDrawable = iconDrawable,
+                totalTimeForegroundMillis = topEntry.value,
+                categoryMedium = resolveAppCategory(topEntry.key, appInfo)
+            )
+        }
+
+        // Fallback to highest app in the 5-day window
+        return fiveDayEntries
+            .flatMap { it.summary.appUsageList }
+            .groupBy { it.packageName }
+            .values
+            .map { list ->
+                val first = list.first()
+                first.copy(totalTimeForegroundMillis = list.sumOf { it.totalTimeForegroundMillis })
+            }
+            .maxByOrNull { it.totalTimeForegroundMillis }
+    }
+
+    private fun computeSummaryForWindow(
+        usageStatsManager: UsageStatsManager,
+        startTime: Long,
+        endTime: Long
+    ): DailyScreenTimeSummary {
+        // 1. Query raw usage events for the window to accurately reconstruct wall-clock time
         val events = usageStatsManager.queryEvents(startTime, endTime)
         val event = UsageEvents.Event()
 
         val screenIntervals = mutableListOf<TimeInterval>()
         var screenOn = false
-        var lastScreenOnTs = startTime // Assume screen may be on if started before midnight
+        var lastScreenOnTs = startTime
 
         val appIntervalsMap = mutableMapOf<String, MutableList<TimeInterval>>()
         val resumedAtMap = mutableMapOf<String, Long>()
@@ -185,7 +313,7 @@ class ScreenTimeRepositoryImpl @Inject constructor(
             )
         }.sortedByDescending { it.totalMillis }
 
-        DailyScreenTimeSummary(
+        return DailyScreenTimeSummary(
             totalScreenTimeMillis = trueDeviceWallClockMillis,
             appSumMillis = sumOfAllAppMillis,
             appUsageList = appUsageList,

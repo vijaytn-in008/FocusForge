@@ -6,8 +6,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,14 +56,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.input.pointer.pointerInput
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.roundToInt
-import kotlin.math.sin
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -132,59 +126,72 @@ fun TimerScreen(
             }
         }
 
-        // Circular Timer Display (Interactive dial when IDLE)
-        item {
-            val updateDurationFromTouch: (Offset, Int, Int) -> Unit = { pos, width, height ->
-                val cx = width / 2f
-                val cy = height / 2f
-                val angle = (Math.toDegrees(atan2((pos.y - cy).toDouble(), (pos.x - cx).toDouble())) + 450.0) % 360.0
-                val minutes = (angle / 360.0 * 120.0).roundToInt().coerceIn(1, 120)
-                viewModel.onDurationChanged(minutes)
+        // Pending Unsaved Journey Banner
+        if (!isTimerActive && uiState.pendingJourney != null) {
+            item {
+                val pending = uiState.pendingJourney!!
+                Card(
+                    onClick = { viewModel.openPendingJourney() },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Saved for Later • ${pending.durationMin}m ${pending.subject}",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Tap to record & save your journey or discard",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.EditNote,
+                            contentDescription = "Record Journey",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             }
+        }
 
+        // Circular Timer Display
+        item {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(260.dp)
-                    .padding(16.dp)
-                    .then(
-                        if (!isTimerActive) {
-                            Modifier
-                                .pointerInput(Unit) {
-                                    detectTapGestures { offset ->
-                                        updateDurationFromTouch(offset, size.width, size.height)
-                                    }
-                                }
-                                .pointerInput(Unit) {
-                                    detectDragGestures { change, _ ->
-                                        change.consume()
-                                        updateDurationFromTouch(change.position, size.width, size.height)
-                                    }
-                                }
-                        } else {
-                            Modifier
-                        }
-                    )
+                    .size(240.dp)
+                    .padding(12.dp)
             ) {
                 val progress = if (isTimerActive && timerState.totalSeconds > 0) {
                     (timerState.remainingSeconds.toFloat() / timerState.totalSeconds.toFloat())
                 } else {
-                    ((uiState.durationSecondsTotal / 60f).coerceIn(1f, 120f)) / 120f
+                    1f
                 }
 
                 val animatedProgress by animateFloatAsState(targetValue = progress, label = "timerProgress")
                 val activeColor = if (timerState.sessionType == SessionType.DEEP) Emerald500 else Amber500
                 val trackColor = MaterialTheme.colorScheme.surfaceVariant
-                val thumbRingColor = MaterialTheme.colorScheme.surface
 
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val strokeWidthPx = 14.dp.toPx()
-                    // Background track
                     drawCircle(
                         color = trackColor,
                         style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
                     )
-                    // Progress arc
                     drawArc(
                         color = activeColor,
                         startAngle = -90f,
@@ -192,25 +199,6 @@ fun TimerScreen(
                         useCenter = false,
                         style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
                     )
-                    // Tactile dial thumb when IDLE
-                    if (!isTimerActive) {
-                        val radius = size.minDimension / 2f
-                        val angleRad = Math.toRadians((-90f + 360f * animatedProgress).toDouble())
-                        val thumbCenter = Offset(
-                            x = center.x + radius * cos(angleRad).toFloat(),
-                            y = center.y + radius * sin(angleRad).toFloat()
-                        )
-                        drawCircle(
-                            color = thumbRingColor,
-                            radius = 12.dp.toPx(),
-                            center = thumbCenter
-                        )
-                        drawCircle(
-                            color = activeColor,
-                            radius = 8.dp.toPx(),
-                            center = thumbCenter
-                        )
-                    }
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -244,6 +232,44 @@ fun TimerScreen(
                             fontWeight = FontWeight.Bold,
                             color = if (isTimerActive) activeColor else MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                }
+            }
+        }
+
+        // Native Scroll-Wheel Timer Picker (HRS : MIN : SEC) + Quick Presets
+        if (!isTimerActive) {
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    TimerWheelPicker(
+                        totalSeconds = uiState.durationSecondsTotal,
+                        onTotalSecondsChanged = viewModel::onTotalSecondsChanged
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+                    ) {
+                        listOf(15, 25, 50, 90).forEach { mins ->
+                            val isSelected = uiState.durationSecondsTotal == mins * 60
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { viewModel.onDurationChanged(mins) },
+                                label = {
+                                    Text(
+                                        text = "${mins}m",
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.primary
+                                )
+                            )
+                        }
                     }
                 }
             }
@@ -470,30 +496,6 @@ fun TimerScreen(
                                 }
                             }
                         }
-
-                        // Quick duration presets (dial above adjusts 1-120m)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf(15, 25, 50, 90).forEach { mins ->
-                                val isSelected = uiState.durationSecondsTotal == mins * 60
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = { viewModel.onDurationChanged(mins) },
-                                    label = {
-                                        Text(
-                                            text = "${mins}m",
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                        )
-                                    },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                        selectedLabelColor = MaterialTheme.colorScheme.primary
-                                    )
-                                )
-                            }
-                        }
                     }
                 }
             }
@@ -571,24 +573,35 @@ fun TimerScreen(
         )
     }
 
-    // Focus Rating & Save Dialog (1..5 Stars)
+    // Full-Screen Completion Alert (Record & Save Journey / Save Later / Discard)
     if (uiState.showRatingDialog) {
-        FocusRatingDialog(
+        TimerCompletionFullScreen(
+            subject = uiState.completedSubject,
+            durationMinutes = uiState.completedDurationMin,
+            sessionType = uiState.completedSessionType,
+            initialNote = uiState.pendingJourney?.note ?: "",
             currentRating = uiState.selectedRating,
             onRatingSelected = viewModel::onRatingChanged,
-            onConfirm = { viewModel.saveCompletedSession(uiState.selectedRating) },
-            onDismiss = viewModel::dismissRatingDialog
+            onSaveNow = { note -> viewModel.saveCompletedSession(uiState.selectedRating, note) },
+            onSaveLater = { note -> viewModel.saveForLater(note) },
+            onDiscard = viewModel::dismissRatingDialog
         )
     }
 }
 
 @Composable
-fun FocusRatingDialog(
+fun TimerCompletionFullScreen(
+    subject: String,
+    durationMinutes: Int,
+    sessionType: SessionType,
+    initialNote: String,
     currentRating: Int,
     onRatingSelected: (Int) -> Unit,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
+    onSaveNow: (String) -> Unit,
+    onSaveLater: (String) -> Unit,
+    onDiscard: () -> Unit
 ) {
+    var reflectionNote by remember(initialNote) { mutableStateOf(initialNote) }
     val ratingDescriptions = listOf(
         1 to "Very Distracted (struggled to maintain attention)",
         2 to "Somewhat Distracted (frequent interruptions)",
@@ -597,80 +610,161 @@ fun FocusRatingDialog(
         5 to "Deep Flow State (zero friction, peak concentration)"
     )
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = null,
-                    tint = Emerald600,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Session Completed",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleLarge
-                )
-            }
-        },
-        text = {
+    Dialog(
+        onDismissRequest = { onSaveLater(reflectionNote) },
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp, vertical = 40.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = "How would you rate your focus quality?",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Interactive 5 stars
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    (1..5).forEach { star ->
-                        val isFilled = star <= currentRating
+                // Top celebratory summary
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(Emerald500.copy(alpha = 0.16f))
+                            .border(2.dp, Emerald500, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Icon(
-                            imageVector = if (isFilled) Icons.Default.Star else Icons.Default.StarBorder,
-                            contentDescription = "Star $star",
-                            tint = Amber500,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clickable { onRatingSelected(star) }
-                                .padding(2.dp)
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = Emerald500,
+                            modifier = Modifier.size(38.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(18.dp))
+                    Text(
+                        text = "Time's Up!",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "${durationMinutes}m • ${if (sessionType == SessionType.DEEP) "Deep Focus" else "Shallow Work"} • $subject",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (sessionType == SessionType.DEEP) Emerald500 else Amber500,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                // Middle: Focus Quality + Record Journey Note
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Rate your focus quality",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        (1..5).forEach { star ->
+                            val isFilled = star <= currentRating
+                            Icon(
+                                imageVector = if (isFilled) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = "Star $star",
+                                tint = Amber500,
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clickable { onRatingSelected(star) }
+                                    .padding(4.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val description = ratingDescriptions.firstOrNull { it.first == currentRating }?.second ?: ""
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    OutlinedTextField(
+                        value = reflectionNote,
+                        onValueChange = { reflectionNote = it },
+                        label = { Text("Record your journey (optional)") },
+                        placeholder = { Text("What did you accomplish or notice?") },
+                        leadingIcon = {
+                            Icon(imageVector = Icons.Default.EditNote, contentDescription = null)
+                        },
+                        minLines = 3,
+                        maxLines = 4,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // Bottom: Record & Save Journey / Save Later / Discard
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Button(
+                        onClick = { onSaveNow(reflectionNote) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Emerald600)
+                    ) {
+                        Text(
+                            text = "Record & Save Journey",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = { onSaveLater(reflectionNote) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text(
+                            text = "Save Later",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    TextButton(
+                        onClick = onDiscard,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Discard Session",
+                            color = Rose600,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                val description = ratingDescriptions.firstOrNull { it.first == currentRating }?.second ?: ""
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(containerColor = Emerald600)
-            ) {
-                Text("Save Session")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Skip Rating")
             }
         }
-    )
+    }
 }

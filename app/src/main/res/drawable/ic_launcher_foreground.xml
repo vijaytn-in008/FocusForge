@@ -3,14 +3,30 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Shield / Forge anvil symbol with timer accent -->
+    <!-- Compact centered focus ring (270-degree productivity arc) -->
     <path
-        android:fillColor="#10B981"
-        android:pathData="M54,20 L78,32 C78,56 66,74 54,84 C42,74 30,56 30,32 Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#34D399"
+        android:strokeWidth="4.5"
+        android:strokeLineCap="round"
+        android:pathData="M54,37 A17,17 0 1,1 37,54" />
+    <!-- Subtle inner track completion arc -->
     <path
-        android:fillColor="#0F172A"
-        android:pathData="M54,34 A16,16 0 1,0 54,66 A16,16 0 1,0 54,34 Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#334155"
+        android:strokeWidth="4.5"
+        android:strokeLineCap="round"
+        android:pathData="M37,54 A17,17 0 0,1 54,37" />
+    <!-- Upward productivity checkmark / focus hand at center -->
     <path
-        android:fillColor="#F8FAFC"
-        android:pathData="M52,40 L56,40 L56,50 L62,54 L59,57 L52,52 Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#6EE7B7"
+        android:strokeWidth="3.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M47,54 L52,59 L62,48" />
+    <!-- Small vibrant amber focus spark at top of ring -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M54,34 A3,3 0 1,0 54,40 A3,3 0 1,0 54,34 Z" />
 </vector>

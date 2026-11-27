@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.focusforge.app.data.local.entity.EmergencyBypassLogEntity
 import com.focusforge.app.data.model.BlockingProfile
 import com.focusforge.app.data.model.DailyScreenTimeSummary
+import com.focusforge.app.data.model.ScreenTimeOverview
 import com.focusforge.app.data.repository.ScreenTimeRepository
 import com.focusforge.app.data.repository.BlockedAppRepository
 import com.focusforge.app.data.repository.PolicyStore
@@ -53,6 +54,12 @@ data class BlockerUiState(
     val attemptsGrouped: List<com.focusforge.app.data.local.dao.AppAttemptCount> = emptyList(),
     val totalAttemptsCount: Int = 0,
     val screenTimeSummary: DailyScreenTimeSummary = DailyScreenTimeSummary(0L, 0L, emptyList(), emptyList(), null),
+    val screenTimeOverview: ScreenTimeOverview = ScreenTimeOverview(
+        todaySummary = DailyScreenTimeSummary(0L, 0L, emptyList(), emptyList(), null),
+        lastFiveDays = emptyList(),
+        maxDayEntry = null,
+        overallMaxApp = null
+    ),
     val isLoadingScreenTime: Boolean = false
 ) {
     val needsPermissions: Boolean
@@ -96,9 +103,10 @@ class BlockedAppsViewModel @Inject constructor(
     fun loadScreenTime() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingScreenTime = true)
-            val summary = screenTimeRepository.getTodayScreenTimeSummary()
+            val overview = screenTimeRepository.getScreenTimeOverview()
             _uiState.value = _uiState.value.copy(
-                screenTimeSummary = summary,
+                screenTimeSummary = overview.todaySummary,
+                screenTimeOverview = overview,
                 isLoadingScreenTime = false
             )
         }

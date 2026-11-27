@@ -1,7 +1,10 @@
 package com.focusforge.app.ui.blocker
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,6 +56,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -61,8 +65,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.runtime.DisposableEffect
+import com.focusforge.app.data.model.ScreenTimeOverview
+import com.focusforge.app.ui.theme.Amber500
+import com.focusforge.app.ui.theme.Emerald500
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -214,7 +222,7 @@ fun BlockedAppsScreen(
                 }
                 1 -> {
                     ScreenTimeTrendsView(
-                        summary = uiState.screenTimeSummary,
+                        overview = uiState.screenTimeOverview,
                         isLoading = uiState.isLoadingScreenTime,
                         onRefresh = { viewModel.loadScreenTime() }
                     )
@@ -499,7 +507,7 @@ fun AppItemRow(
 
 @Composable
 fun ScreenTimeTrendsView(
-    summary: DailyScreenTimeSummary,
+    overview: ScreenTimeOverview,
     isLoading: Boolean,
     onRefresh: () -> Unit
 ) {
@@ -513,7 +521,19 @@ fun ScreenTimeTrendsView(
         return
     }
 
-    if (summary.totalScreenTimeMinutes == 0 && summary.appUsageList.isEmpty()) {
+    val days = overview.lastFiveDays
+    var showLastFiveDays by remember { mutableStateOf(false) }
+    var selectedDayIndex by remember(days.size) {
+        mutableIntStateOf((days.size - 1).coerceAtLeast(0))
+    }
+
+    val activeDayEntry = days.getOrNull(selectedDayIndex)
+    val summary = activeDayEntry?.summary ?: overview.todaySummary
+
+    if (overview.todaySummary.totalScreenTimeMinutes == 0 &&
+        overview.todaySummary.appUsageList.isEmpty() &&
+        days.all { it.summary.totalScreenTimeMinutes == 0 }
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -529,7 +549,7 @@ fun ScreenTimeTrendsView(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "No screen time recorded for today yet.",
+                    text = "No screen time recorded yet.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -543,8 +563,9 @@ fun ScreenTimeTrendsView(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Total Screen Time Hero Card
+        // 1. Initial Day (Today) Screen Time Hero Card
         item {
+            val today = overview.todaySummary
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
@@ -553,11 +574,37 @@ fun ScreenTimeTrendsView(
                 )
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
-                    Text(
-                        text = "TODAY'S PHONE SCREEN TIME",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (selectedDayIndex == days.lastIndex || activeDayEntry == null) {
+                                "TODAY'S PHONE SCREEN TIME"
+                            } else {
+                                "${activeDayEntry.dayLabel.uppercase()} (${activeDayEntry.dateLabel.uppercase()})"
+                            },
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (days.isNotEmpty()) {
+                            androidx.compose.material3.Surface(
+                                onClick = { showLastFiveDays = !showLastFiveDays },
+                                shape = RoundedCornerShape(999.dp),
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                            ) {
+                                Text(
+                                    text = if (showLastFiveDays) "Hide 5 Days" else "Last 5 Days",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                )
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = TimeUtils.formatMinutesToDuration(summary.totalScreenTimeMinutes),
@@ -569,7 +616,7 @@ fun ScreenTimeTrendsView(
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = if (summary.topApp != null) {
-                            "Most used: ${summary.topApp.appName} (${summary.topApp.totalMinutes}m)"
+                            "Most used: ${summary.topApp.appName} (${TimeUtils.formatMinutesToDuration(summary.topApp.totalMinutes)})"
                         } else {
                             "Total active time on your phone"
                         },
@@ -577,13 +624,169 @@ fun ScreenTimeTrendsView(
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                     )
 
-                    if (summary.overlapMinutes > 0) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                    if (selectedDayIndex != days.lastIndex && today.totalScreenTimeMinutes > 0) {
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Wall-clock deduplicated. App foregrounds sum to ${TimeUtils.formatMinutesToDuration(summary.appSumMinutes)} due to multitasking overlap.",
+                            text = "Today so far: ${TimeUtils.formatMinutesToDuration(today.totalScreenTimeMinutes)}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
                         )
+                    }
+                }
+            }
+        }
+
+        // 2. Option to inspect Last 5 Days
+        if (days.isNotEmpty()) {
+            item {
+                AnimatedVisibility(visible = showLastFiveDays) {
+                    val maxFiveDayMin = days.maxOfOrNull { it.summary.totalScreenTimeMinutes }?.coerceAtLeast(1) ?: 1
+                    val avgFiveDayMin = (days.sumOf { it.summary.totalScreenTimeMinutes } / days.size)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "LAST 5 DAYS",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "Avg ${TimeUtils.formatMinutesToDuration(avgFiveDayMin)}/day",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(126.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.Bottom
+                            ) {
+                                days.forEachIndexed { index, entry ->
+                                    val mins = entry.summary.totalScreenTimeMinutes
+                                    val fraction = (mins.toFloat() / maxFiveDayMin.toFloat()).coerceIn(0.06f, 1f)
+                                    val isSelected = index == selectedDayIndex
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable { selectedDayIndex = index }
+                                            .padding(vertical = 4.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Bottom
+                                    ) {
+                                        Text(
+                                            text = TimeUtils.formatMinutesToDuration(mins),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontSize = 10.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1
+                                        )
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth(0.55f)
+                                                .height((72.dp * fraction).coerceAtLeast(6.dp))
+                                                .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                                                .background(
+                                                    if (isSelected) Emerald500
+                                                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+                                                )
+                                        )
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = entry.dayLabel,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Overall Max Usage Card
+        if (overview.maxDayEntry != null || overview.overallMaxApp != null) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "OVERALL MAX USAGE",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Amber500
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            overview.maxDayEntry?.let { peakDay ->
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Peak Day",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = TimeUtils.formatMinutesToDuration(peakDay.summary.totalScreenTimeMinutes),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "${peakDay.dayLabel}, ${peakDay.dateLabel}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            overview.overallMaxApp?.let { maxApp ->
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Top App Overall",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = TimeUtils.formatMinutesToDuration(maxApp.totalMinutes),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = maxApp.appName,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -761,45 +964,44 @@ fun AttemptsLogView(
             }
         }
     } else {
+        val totalAttempts = attempts.size
+        val maxAppCount = groupedAttempts.maxOfOrNull { it.count }?.coerceAtLeast(1) ?: 1
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Grouped breakdown card
+            // Overall Attempts Summary Card
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
                     )
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(20.dp)) {
                         Text(
-                            text = "MOST FREQUENTLY ATTEMPTED",
-                            style = MaterialTheme.typography.labelSmall,
+                            text = "OVERALL INTERCEPTED ATTEMPTS",
+                            style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        groupedAttempts.take(3).forEach { group ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = group.appName,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-                                )
-                                Text(
-                                    text = "${group.count} time(s)",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
+                        Text(
+                            text = "$totalAttempts blocked ${if (totalAttempts == 1) "attempt" else "attempts"}",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        groupedAttempts.firstOrNull()?.let { top ->
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Most attempted: ${top.appName} (${top.count}×)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            )
                         }
                     }
                 }
@@ -807,53 +1009,47 @@ fun AttemptsLogView(
 
             item {
                 Text(
-                    text = "Recent Interceptions",
+                    text = "Overall Attempts by App",
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
 
-            items(attempts) { attempt ->
+            items(groupedAttempts) { group ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface
                     ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.errorContainer),
-                            contentAlignment = Alignment.Center
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Block,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = attempt.appName,
+                                text = group.appName,
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
                             )
                             Text(
-                                text = TimeUtils.formatEpochToDateTime(attempt.timestamp),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = "${group.count}×",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.error
                             )
                         }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        androidx.compose.material3.LinearProgressIndicator(
+                            progress = { (group.count.toFloat() / maxAppCount.toFloat()).coerceIn(0.05f, 1f) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = MaterialTheme.colorScheme.error,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
                     }
                 }
             }

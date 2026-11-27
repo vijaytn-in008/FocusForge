@@ -48,3 +48,17 @@ data class DailyScreenTimeSummary(
     val overlapMinutes: Int
         get() = (appSumMinutes - totalScreenTimeMinutes).coerceAtLeast(0)
 }
+
+data class DayScreenTimeEntry(
+    val dayLabel: String,
+    val dateLabel: String,
+    val dayStartMillis: Long,
+    val summary: DailyScreenTimeSummary
+)
+
+data class ScreenTimeOverview(
+    val todaySummary: DailyScreenTimeSummary,
+    val lastFiveDays: List<DayScreenTimeEntry>,
+    val maxDayEntry: DayScreenTimeEntry?,
+    val overallMaxApp: AppUsageStat?
+)
