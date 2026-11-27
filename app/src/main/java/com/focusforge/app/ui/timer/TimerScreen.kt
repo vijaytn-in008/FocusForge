@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.focusforge.app.data.model.SessionType
 import com.focusforge.app.service.TimerStatus
+import com.focusforge.app.ui.components.ForgeCard
 import com.focusforge.app.ui.theme.Amber500
 import com.focusforge.app.ui.theme.Emerald500
 import com.focusforge.app.ui.theme.Emerald600
@@ -158,7 +159,7 @@ fun TimerScreen(
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    val displaySeconds = if (isTimerActive) timerState.remainingSeconds else uiState.durationMinutes * 60
+                    val displaySeconds = if (isTimerActive) timerState.remainingSeconds else uiState.durationSecondsTotal
                     Text(
                         text = TimeUtils.formatSecondsToTime(displaySeconds),
                         fontSize = 46.sp,
@@ -174,7 +175,7 @@ fun TimerScreen(
                         TimerStatus.RUNNING -> if (timerState.sessionType == SessionType.DEEP) "DEEP FOCUS" else "SHALLOW WORK"
                         TimerStatus.PAUSED -> "PAUSED"
                         TimerStatus.COMPLETED -> "COMPLETED"
-                        TimerStatus.IDLE -> "${uiState.durationMinutes} MIN GOAL"
+                        TimerStatus.IDLE -> "${TimeUtils.formatSecondsToTime(uiState.durationSecondsTotal)} GOAL"
                     }
 
                     Surface(
@@ -323,70 +324,90 @@ fun TimerScreen(
                             ) {
                                 val isDeep = uiState.sessionType == SessionType.DEEP
 
-                                Card(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clickable { viewModel.onSessionTypeChanged(SessionType.DEEP) },
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (isDeep) Emerald500.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
-                                    ),
-                                    border = if (isDeep) CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(Emerald500)) else null
+                                ForgeCard(
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { viewModel.onSessionTypeChanged(SessionType.DEEP) },
+                                    containerColor = if (isDeep) Emerald500.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                                    borderColor = if (isDeep) Emerald500 else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                    cornerRadius = 14.dp,
+                                    elevation = if (isDeep) 3.dp else 0.dp
                                 ) {
                                     Column(modifier = Modifier.padding(14.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
                                             Icon(
                                                 imageVector = Icons.Default.Psychology,
                                                 contentDescription = null,
-                                                tint = if (isDeep) Emerald600 else MaterialTheme.colorScheme.onSurface,
-                                                modifier = Modifier.size(18.dp)
+                                                tint = if (isDeep) Emerald600 else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
                                             )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = "Deep Work",
-                                                fontWeight = FontWeight.Bold,
-                                                style = MaterialTheme.typography.titleSmall,
-                                                color = if (isDeep) Emerald600 else MaterialTheme.colorScheme.onSurface
-                                            )
+                                            if (isDeep) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    tint = Emerald600,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
                                         }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = "Deep Work",
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = if (isDeep) Emerald600 else MaterialTheme.colorScheme.onSurface
+                                        )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = "High cognitive focus",
+                                            text = "Zero-distraction focus",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
 
-                                Card(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clickable { viewModel.onSessionTypeChanged(SessionType.SHALLOW) },
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (!isDeep) Amber500.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
-                                    ),
-                                    border = if (!isDeep) CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(Amber500)) else null
+                                ForgeCard(
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { viewModel.onSessionTypeChanged(SessionType.SHALLOW) },
+                                    containerColor = if (!isDeep) Amber500.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                                    borderColor = if (!isDeep) Amber500 else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                    cornerRadius = 14.dp,
+                                    elevation = if (!isDeep) 3.dp else 0.dp
                                 ) {
                                     Column(modifier = Modifier.padding(14.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
                                             Icon(
                                                 imageVector = Icons.Default.EditNote,
                                                 contentDescription = null,
-                                                tint = if (!isDeep) Amber500 else MaterialTheme.colorScheme.onSurface,
+                                                tint = if (!isDeep) Amber500 else MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.size(20.dp)
                                             )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = "Shallow Work",
-                                                fontWeight = FontWeight.Bold,
-                                                style = MaterialTheme.typography.titleSmall,
-                                                color = if (!isDeep) Amber500 else MaterialTheme.colorScheme.onSurface
-                                            )
+                                            if (!isDeep) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    tint = Amber500,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
                                         }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = "Shallow Work",
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = if (!isDeep) Amber500 else MaterialTheme.colorScheme.onSurface
+                                        )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = "Administrative tasks",
+                                            text = "Routine & admin tasks",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -395,7 +416,7 @@ fun TimerScreen(
                             }
                         }
 
-                        // Duration presets + custom input
+                        // Duration presets + H:M:S Scroll Wheel Picker
                         Column {
                             Text(
                                 text = "Duration",
@@ -409,7 +430,7 @@ fun TimerScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 listOf(15, 25, 50, 90).forEach { mins ->
-                                    val isSelected = uiState.durationMinutes == mins
+                                    val isSelected = uiState.durationSecondsTotal == mins * 60
                                     FilterChip(
                                         selected = isSelected,
                                         onClick = { viewModel.onDurationChanged(mins) },
@@ -426,16 +447,10 @@ fun TimerScreen(
                                     )
                                 }
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedTextField(
-                                value = uiState.customDurationInput,
-                                onValueChange = viewModel::onCustomDurationInputChanged,
-                                label = { Text("Custom minutes (1–240)") },
-                                placeholder = { Text("25") },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
+                            Spacer(modifier = Modifier.height(10.dp))
+                            TimerWheelPicker(
+                                totalSeconds = uiState.durationSecondsTotal,
+                                onTotalSecondsChanged = viewModel::onTotalSecondsChanged
                             )
                         }
                     }

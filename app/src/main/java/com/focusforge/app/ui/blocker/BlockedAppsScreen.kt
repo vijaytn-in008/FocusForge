@@ -72,6 +72,9 @@ import com.focusforge.app.data.model.AppCategoryMedium
 import com.focusforge.app.data.local.dao.AppAttemptCount
 import com.focusforge.app.data.local.entity.BlockedAppAttemptEntity
 import com.focusforge.app.data.local.entity.EmergencyBypassLogEntity
+import com.focusforge.app.ui.components.ForgeCard
+import com.focusforge.app.ui.components.ForgeStatusPill
+import com.focusforge.app.ui.theme.Emerald500
 import com.focusforge.app.util.TimeUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -241,17 +244,16 @@ fun BlockerMasterHeader(
     onSelectProfile: (BlockingProfile) -> Unit,
     onNavigateToPermissions: () -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isRunning)
-                MaterialTheme.colorScheme.primaryContainer
-            else
-                MaterialTheme.colorScheme.surfaceVariant
-        )
+    ForgeCard(
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+        containerColor = if (isRunning)
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+        else
+            MaterialTheme.colorScheme.surface,
+        borderColor = if (isRunning)
+            Emerald500.copy(alpha = 0.45f)
+        else
+            MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -263,35 +265,41 @@ fun BlockerMasterHeader(
                 Icon(
                     imageVector = if (isRunning) Icons.Default.Shield else Icons.Default.Block,
                     contentDescription = null,
-                    modifier = Modifier.size(32.dp),
-                    tint = if (isRunning)
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                    modifier = Modifier.size(30.dp),
+                    tint = if (isRunning) Emerald500 else MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = if (isRunning) "Shield: ${activeProfile.name}" else "Shield is OFF",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        ForgeStatusPill(
+                            label = if (isRunning) "ACTIVE" else "PAUSED",
+                            active = isRunning
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (isRunning) "Shield: ${activeProfile.name}" else "Shield is OFF",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = if (isRunning)
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = if (isRunning) "Enforcing profile rules" else "Select a profile to start guarding",
+                        text = if (isRunning) "Enforcing profile rules" else "Select a profile or toggle ON",
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (isRunning)
-                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
                 Switch(
                     checked = isRunning,
                     onCheckedChange = { onToggleService() },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = androidx.compose.ui.graphics.Color.White,
+                        checkedTrackColor = Emerald500,
+                        uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        uncheckedBorderColor = MaterialTheme.colorScheme.outline
+                    ),
                     thumbContent = if (isRunning) {
                         { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(SwitchDefaults.IconSize)) }
                     } else null

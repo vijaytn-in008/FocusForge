@@ -23,6 +23,7 @@ data class TimerUiState(
     val subjectInput: String = "General Focus",
     val topicInput: String = "",
     val durationMinutes: Int = 25,
+    val durationSecondsTotal: Int = 25 * 60,
     val customDurationInput: String = "25",
     val sessionType: SessionType = SessionType.DEEP,
     val timerServiceState: TimerState = TimerState(),
@@ -34,6 +35,7 @@ private data class FormState(
     val subject: String = "General Focus",
     val topic: String = "",
     val durationMinutes: Int = 25,
+    val durationSecondsTotal: Int = 25 * 60,
     val customDurationInput: String = "25",
     val sessionType: SessionType = SessionType.DEEP,
     val showRatingDialog: Boolean = false,
@@ -72,6 +74,7 @@ class TimerViewModel @Inject constructor(
             subjectInput = form.subject,
             topicInput = form.topic,
             durationMinutes = form.durationMinutes,
+            durationSecondsTotal = form.durationSecondsTotal,
             customDurationInput = form.customDurationInput,
             sessionType = form.sessionType,
             timerServiceState = serviceState,
@@ -93,10 +96,20 @@ class TimerViewModel @Inject constructor(
     }
 
     fun onDurationChanged(minutes: Int) {
-        val clamped = minutes.coerceIn(1, 240)
+        val clamped = minutes.coerceIn(1, 720)
         _formState.value = _formState.value.copy(
             durationMinutes = clamped,
+            durationSecondsTotal = clamped * 60,
             customDurationInput = clamped.toString()
+        )
+    }
+
+    fun onTotalSecondsChanged(totalSeconds: Int) {
+        val clamped = totalSeconds.coerceIn(1, 12 * 3600 + 59 * 60 + 59)
+        _formState.value = _formState.value.copy(
+            durationSecondsTotal = clamped,
+            durationMinutes = maxOf(1, (clamped + 59) / 60),
+            customDurationInput = maxOf(1, clamped / 60).toString()
         )
     }
 
@@ -123,7 +136,7 @@ class TimerViewModel @Inject constructor(
 
     fun startTimer(context: Context) {
         val form = _formState.value
-        val durationSec = form.durationMinutes.coerceIn(1, 240) * 60
+        val durationSec = form.durationSecondsTotal.coerceAtLeast(1)
         lastSavedStartTimeMillis = -1L
         completedSessionDetails = null
         TimerService.startTimer(

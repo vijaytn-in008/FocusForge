@@ -266,10 +266,11 @@ fun PrivateListScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            Spacer(modifier = Modifier.height(4.dp))
             // Pending weakening countdown (never displays rule name!)
             uiState.pendingPrivateChange?.let { pending ->
                 Card(
