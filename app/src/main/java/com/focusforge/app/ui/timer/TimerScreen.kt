@@ -6,6 +6,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,8 +58,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.roundToInt
+import kotlin.math.sin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -124,29 +132,57 @@ fun TimerScreen(
             }
         }
 
-        // Circular Timer Display
+        // Circular Timer Display (Interactive dial when IDLE)
         item {
+            val updateDurationFromTouch: (Offset, Int, Int) -> Unit = { pos, width, height ->
+                val cx = width / 2f
+                val cy = height / 2f
+                val angle = (Math.toDegrees(atan2((pos.y - cy).toDouble(), (pos.x - cx).toDouble())) + 450.0) % 360.0
+                val minutes = (angle / 360.0 * 120.0).roundToInt().coerceIn(1, 120)
+                viewModel.onDurationChanged(minutes)
+            }
+
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .size(260.dp)
-                    .padding(12.dp)
+                    .padding(16.dp)
+                    .then(
+                        if (!isTimerActive) {
+                            Modifier
+                                .pointerInput(Unit) {
+                                    detectTapGestures { offset ->
+                                        updateDurationFromTouch(offset, size.width, size.height)
+                                    }
+                                }
+                                .pointerInput(Unit) {
+                                    detectDragGestures { change, _ ->
+                                        change.consume()
+                                        updateDurationFromTouch(change.position, size.width, size.height)
+                                    }
+                                }
+                        } else {
+                            Modifier
+                        }
+                    )
             ) {
                 val progress = if (isTimerActive && timerState.totalSeconds > 0) {
                     (timerState.remainingSeconds.toFloat() / timerState.totalSeconds.toFloat())
                 } else {
-                    1f
+                    ((uiState.durationSecondsTotal / 60f).coerceIn(1f, 120f)) / 120f
                 }
 
                 val animatedProgress by animateFloatAsState(targetValue = progress, label = "timerProgress")
                 val activeColor = if (timerState.sessionType == SessionType.DEEP) Emerald500 else Amber500
                 val trackColor = MaterialTheme.colorScheme.surfaceVariant
+                val thumbRingColor = MaterialTheme.colorScheme.surface
 
                 Canvas(modifier = Modifier.fillMaxSize()) {
+                    val strokeWidthPx = 14.dp.toPx()
                     // Background track
                     drawCircle(
                         color = trackColor,
-                        style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round)
+                        style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
                     )
                     // Progress arc
                     drawArc(
@@ -154,8 +190,27 @@ fun TimerScreen(
                         startAngle = -90f,
                         sweepAngle = 360f * animatedProgress,
                         useCenter = false,
-                        style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round)
+                        style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
                     )
+                    // Tactile dial thumb when IDLE
+                    if (!isTimerActive) {
+                        val radius = size.minDimension / 2f
+                        val angleRad = Math.toRadians((-90f + 360f * animatedProgress).toDouble())
+                        val thumbCenter = Offset(
+                            x = center.x + radius * cos(angleRad).toFloat(),
+                            y = center.y + radius * sin(angleRad).toFloat()
+                        )
+                        drawCircle(
+                            color = thumbRingColor,
+                            radius = 12.dp.toPx(),
+                            center = thumbCenter
+                        )
+                        drawCircle(
+                            color = activeColor,
+                            radius = 8.dp.toPx(),
+                            center = thumbCenter
+                        )
+                    }
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -416,42 +471,28 @@ fun TimerScreen(
                             }
                         }
 
-                        // Duration presets + H:M:S Scroll Wheel Picker
-                        Column {
-                            Text(
-                                text = "Duration",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                listOf(15, 25, 50, 90).forEach { mins ->
-                                    val isSelected = uiState.durationSecondsTotal == mins * 60
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = { viewModel.onDurationChanged(mins) },
-                                        label = {
-                                            Text(
-                                                text = "${mins}m",
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                            )
-                                        },
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                            selectedLabelColor = MaterialTheme.colorScheme.primary
+                        // Quick duration presets (dial above adjusts 1-120m)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(15, 25, 50, 90).forEach { mins ->
+                                val isSelected = uiState.durationSecondsTotal == mins * 60
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { viewModel.onDurationChanged(mins) },
+                                    label = {
+                                        Text(
+                                            text = "${mins}m",
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                         )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedLabelColor = MaterialTheme.colorScheme.primary
                                     )
-                                }
+                                )
                             }
-                            Spacer(modifier = Modifier.height(10.dp))
-                            TimerWheelPicker(
-                                totalSeconds = uiState.durationSecondsTotal,
-                                onTotalSecondsChanged = viewModel::onTotalSecondsChanged
-                            )
                         }
                     }
                 }

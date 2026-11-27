@@ -168,7 +168,7 @@ fun ProtectionScreen(
             // Master Status Card
             ForgeGradientCard(
                 brush = if (uiState.isVpnRunning) {
-                    Brush.linearGradient(listOf(Indigo700, Violet600, Emerald700))
+                    Brush.linearGradient(listOf(Emerald700, Teal700, Slate850))
                 } else {
                     Brush.linearGradient(
                         listOf(

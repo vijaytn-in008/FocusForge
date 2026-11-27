@@ -139,50 +139,6 @@ fun BlockedAppsScreen(
                 onNavigateToPermissions = onNavigateToPermissions
             )
 
-            // Prominent Web & DNS Protection Banner so new users discover it immediately
-            ForgeCard(
-                modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 10.dp),
-                onClick = onNavigateToProtection,
-                containerColor = com.focusforge.app.ui.theme.Violet500.copy(alpha = 0.12f),
-                borderColor = com.focusforge.app.ui.theme.Violet500.copy(alpha = 0.4f),
-                cornerRadius = 16.dp,
-                elevation = 1.dp
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                        Icon(
-                            imageVector = Icons.Default.Public,
-                            contentDescription = null,
-                            tint = com.focusforge.app.ui.theme.Violet500,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = "Web & DNS Protection",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Adult filter, allowlist & discreet custom rules",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    Text(
-                        text = "Open →",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = com.focusforge.app.ui.theme.Violet500
-                    )
-                }
-            }
-
             // Tabs: Apps List, Screen Time, Intercepted Attempts, Bypass Logs
             TabRow(selectedTabIndex = selectedTab) {
                 Tab(
