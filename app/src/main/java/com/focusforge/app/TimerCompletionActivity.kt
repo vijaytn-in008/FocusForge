@@ -35,6 +35,7 @@ class TimerCompletionActivity : ComponentActivity() {
         const val EXTRA_TOPIC = "extra_topic"
         const val EXTRA_START_TIME = "extra_start_time"
         const val EXTRA_DURATION_MIN = "extra_duration_min"
+        const val EXTRA_DURATION_SECONDS = "extra_duration_seconds"
         const val EXTRA_SESSION_TYPE = "extra_session_type"
     }
 
@@ -45,6 +46,7 @@ class TimerCompletionActivity : ComponentActivity() {
         val subject = intent.getStringExtra(EXTRA_SUBJECT)?.ifBlank { "General Focus" } ?: "General Focus"
         val topic = intent.getStringExtra(EXTRA_TOPIC) ?: ""
         val durationMin = intent.getIntExtra(EXTRA_DURATION_MIN, 25).coerceAtLeast(1)
+        val durationSeconds = intent.getIntExtra(EXTRA_DURATION_SECONDS, durationMin * 60).coerceAtLeast(1)
         val startTimeMillis = intent.getLongExtra(
             EXTRA_START_TIME,
             System.currentTimeMillis() - durationMin * 60_000L
@@ -57,7 +59,7 @@ class TimerCompletionActivity : ComponentActivity() {
                 var selectedRating by remember { mutableIntStateOf(5) }
                 TimerCompletionFullScreen(
                     subject = subject,
-                    durationMinutes = durationMin,
+                    durationSeconds = durationSeconds,
                     sessionType = sessionType,
                     initialNote = "",
                     currentRating = selectedRating,
@@ -69,7 +71,17 @@ class TimerCompletionActivity : ComponentActivity() {
                             else -> topic.trim()
                         }
                         getSharedPreferences("focusforge_pending_journey", Context.MODE_PRIVATE)
-                            .edit().clear().apply()
+                            .edit()
+                            .remove("has_pending")
+                            .remove("subject")
+                            .remove("topic")
+                            .remove("startTimeMillis")
+                            .remove("durationMin")
+                            .remove("durationSeconds")
+                            .remove("sessionType")
+                            .remove("note")
+                            .putLong("last_handled_start_time", startTimeMillis)
+                            .apply()
                         TimerService.resetState()
                         lifecycleScope.launch {
                             sessionRepository.saveSession(
@@ -93,15 +105,27 @@ class TimerCompletionActivity : ComponentActivity() {
                             .putString("topic", topic)
                             .putLong("startTimeMillis", startTimeMillis)
                             .putInt("durationMin", durationMin)
+                            .putInt("durationSeconds", durationSeconds)
                             .putString("sessionType", sessionType.name)
                             .putString("note", note.trim())
+                            .putLong("last_handled_start_time", startTimeMillis)
                             .apply()
                         TimerService.resetState()
                         finish()
                     },
                     onDiscard = {
                         getSharedPreferences("focusforge_pending_journey", Context.MODE_PRIVATE)
-                            .edit().clear().apply()
+                            .edit()
+                            .remove("has_pending")
+                            .remove("subject")
+                            .remove("topic")
+                            .remove("startTimeMillis")
+                            .remove("durationMin")
+                            .remove("durationSeconds")
+                            .remove("sessionType")
+                            .remove("note")
+                            .putLong("last_handled_start_time", startTimeMillis)
+                            .apply()
                         TimerService.resetState()
                         finish()
                     }

@@ -188,6 +188,7 @@ class TimerService : Service() {
             putExtra(com.focusforge.app.TimerCompletionActivity.EXTRA_TOPIC, state.topic)
             putExtra(com.focusforge.app.TimerCompletionActivity.EXTRA_START_TIME, startTime)
             putExtra(com.focusforge.app.TimerCompletionActivity.EXTRA_DURATION_MIN, durationMin)
+            putExtra(com.focusforge.app.TimerCompletionActivity.EXTRA_DURATION_SECONDS, state.totalSeconds.coerceAtLeast(1))
             putExtra(com.focusforge.app.TimerCompletionActivity.EXTRA_SESSION_TYPE, state.sessionType.name)
         }
     }

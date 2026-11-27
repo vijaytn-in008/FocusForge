@@ -32,6 +32,21 @@ object TimeUtils {
     }
 
     /**
+     * Formats exact seconds to human readable string (e.g., "10s", "1m 30s", "25m", "1h 15m")
+     */
+    fun formatSecondsToReadable(totalSeconds: Int): String {
+        val safe = totalSeconds.coerceAtLeast(1)
+        val hours = safe / 3600
+        val minutes = (safe % 3600) / 60
+        val seconds = safe % 60
+        val parts = mutableListOf<String>()
+        if (hours > 0) parts.add("${hours}h")
+        if (minutes > 0) parts.add("${minutes}m")
+        if (seconds > 0) parts.add("${seconds}s")
+        return parts.joinToString(" ")
+    }
+
+    /**
      * Formats epoch millis into readable date and time (e.g., "Nov 24, 09:30 AM")
      */
     fun formatEpochToDateTime(epochMillis: Long): String {

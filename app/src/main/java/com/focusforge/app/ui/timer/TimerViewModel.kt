@@ -25,6 +25,7 @@ data class PendingJourney(
     val topic: String,
     val startTimeMillis: Long,
     val durationMin: Int,
+    val durationSeconds: Int = durationMin * 60,
     val sessionType: SessionType,
     val note: String = ""
 )
@@ -41,6 +42,7 @@ data class TimerUiState(
     val selectedRating: Int = 5,
     val completedSubject: String = "General Focus",
     val completedDurationMin: Int = 25,
+    val completedDurationSeconds: Int = 25 * 60,
     val completedSessionType: SessionType = SessionType.DEEP,
     val pendingJourney: PendingJourney? = null
 )
@@ -56,6 +58,7 @@ private data class FormState(
     val selectedRating: Int = 5,
     val completedSubject: String = "General Focus",
     val completedDurationMin: Int = 25,
+    val completedDurationSeconds: Int = 25 * 60,
     val completedSessionType: SessionType = SessionType.DEEP,
     val pendingJourney: PendingJourney? = null
 )
@@ -74,9 +77,18 @@ class TimerViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             TimerService.timerState.collect { serviceState ->
-                if (serviceState.status == TimerStatus.COMPLETED &&
+                val handledInActivity = prefs.getLong("last_handled_start_time", -1L)
+                if (serviceState.status == TimerStatus.IDLE && completedSessionDetails != null) {
+                    // External completion activity already handled and reset the service
+                    completedSessionDetails = null
+                    _formState.value = _formState.value.copy(
+                        showRatingDialog = false,
+                        pendingJourney = loadPendingJourney()
+                    )
+                } else if (serviceState.status == TimerStatus.COMPLETED &&
                     serviceState.startTimeMillis > 0L &&
                     serviceState.startTimeMillis != lastSavedStartTimeMillis &&
+                    serviceState.startTimeMillis != handledInActivity &&
                     !_formState.value.showRatingDialog
                 ) {
                     completedSessionDetails = serviceState
@@ -85,6 +97,7 @@ class TimerViewModel @Inject constructor(
                         showRatingDialog = true,
                         completedSubject = serviceState.subject.ifBlank { "General Focus" },
                         completedDurationMin = completedMin,
+                        completedDurationSeconds = serviceState.totalSeconds.coerceAtLeast(1),
                         completedSessionType = serviceState.sessionType
                     )
                 }
@@ -108,6 +121,7 @@ class TimerViewModel @Inject constructor(
             selectedRating = form.selectedRating,
             completedSubject = form.completedSubject,
             completedDurationMin = form.completedDurationMin,
+            completedDurationSeconds = form.completedDurationSeconds,
             completedSessionType = form.completedSessionType,
             pendingJourney = form.pendingJourney
         )
@@ -324,6 +338,7 @@ class TimerViewModel @Inject constructor(
                 topic = sessionToDefer.topic,
                 startTimeMillis = startTime,
                 durationMin = durationMin,
+                durationSeconds = sessionToDefer.totalSeconds.coerceAtLeast(1),
                 sessionType = sessionToDefer.sessionType,
                 note = reflectionNote.trim()
             )
@@ -346,12 +361,23 @@ class TimerViewModel @Inject constructor(
             showRatingDialog = true,
             completedSubject = pending.subject,
             completedDurationMin = pending.durationMin,
+            completedDurationSeconds = pending.durationSeconds,
             completedSessionType = pending.sessionType
         )
     }
 
     fun refreshPendingJourney() {
-        _formState.value = _formState.value.copy(pendingJourney = loadPendingJourney())
+        val handledInActivity = prefs.getLong("last_handled_start_time", -1L)
+        val shouldDismiss = completedSessionDetails != null &&
+            (completedSessionDetails?.startTimeMillis == handledInActivity ||
+                TimerService.timerState.value.status == TimerStatus.IDLE)
+        if (shouldDismiss) {
+            completedSessionDetails = null
+        }
+        _formState.value = _formState.value.copy(
+            showRatingDialog = if (shouldDismiss) false else _formState.value.showRatingDialog,
+            pendingJourney = loadPendingJourney()
+        )
     }
 
     fun dismissRatingDialog() {
@@ -379,6 +405,7 @@ class TimerViewModel @Inject constructor(
             .putString("topic", pending.topic)
             .putLong("startTimeMillis", pending.startTimeMillis)
             .putInt("durationMin", pending.durationMin)
+            .putInt("durationSeconds", pending.durationSeconds)
             .putString("sessionType", pending.sessionType.name)
             .putString("note", pending.note)
             .apply()
@@ -394,9 +421,10 @@ class TimerViewModel @Inject constructor(
         val topic = prefs.getString("topic", "") ?: ""
         val startTime = prefs.getLong("startTimeMillis", 0L)
         val durationMin = prefs.getInt("durationMin", 25)
+        val durationSeconds = prefs.getInt("durationSeconds", durationMin * 60)
         val typeName = prefs.getString("sessionType", SessionType.DEEP.name) ?: SessionType.DEEP.name
         val note = prefs.getString("note", "") ?: ""
         val sessionType = runCatching { SessionType.valueOf(typeName) }.getOrDefault(SessionType.DEEP)
-        return PendingJourney(subject, topic, startTime, durationMin, sessionType, note)
+        return PendingJourney(subject, topic, startTime, durationMin, durationSeconds, sessionType, note)
     }
 }

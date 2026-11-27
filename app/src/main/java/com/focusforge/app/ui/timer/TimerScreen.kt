@@ -546,7 +546,7 @@ fun TimerScreen(
     if (uiState.showRatingDialog) {
         TimerCompletionFullScreen(
             subject = uiState.completedSubject,
-            durationMinutes = uiState.completedDurationMin,
+            durationSeconds = uiState.completedDurationSeconds,
             sessionType = uiState.completedSessionType,
             initialNote = uiState.pendingJourney?.note ?: "",
             currentRating = uiState.selectedRating,
@@ -704,7 +704,7 @@ private fun FocusTypeGlassCard(
 @Composable
 fun TimerCompletionFullScreen(
     subject: String,
-    durationMinutes: Int,
+    durationSeconds: Int,
     sessionType: SessionType,
     initialNote: String,
     currentRating: Int,
@@ -812,7 +812,7 @@ fun TimerCompletionFullScreen(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "${durationMinutes}m • ${if (sessionType == SessionType.DEEP) "Deep Work" else "Shallow Work"} • $subject",
+                                text = "${TimeUtils.formatSecondsToReadable(durationSeconds)} • ${if (sessionType == SessionType.DEEP) "Deep Work" else "Shallow Work"} • $subject",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = accentColor
