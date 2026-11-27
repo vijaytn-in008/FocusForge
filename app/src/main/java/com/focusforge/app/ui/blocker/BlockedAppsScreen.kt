@@ -66,6 +66,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.focusforge.app.data.model.BlockingProfile
 import com.focusforge.app.data.model.DailyScreenTimeSummary
 import com.focusforge.app.data.model.AppCategoryMedium
 import com.focusforge.app.data.local.dao.AppAttemptCount
@@ -119,10 +120,12 @@ fun BlockedAppsScreen(
             // Master Blocker Switch Header
             BlockerMasterHeader(
                 isRunning = uiState.isBlockerRunning,
+                activeProfile = uiState.activeProfile,
                 isBypassActive = uiState.isBypassActive,
                 bypassRemainingSeconds = uiState.bypassRemainingSeconds,
                 needsPermissions = uiState.needsPermissions,
                 onToggleService = { viewModel.toggleBlockerService() },
+                onSelectProfile = { viewModel.setProfile(it) },
                 onNavigateToPermissions = onNavigateToPermissions
             )
 
@@ -223,10 +226,12 @@ fun BlockedAppsScreen(
 @Composable
 fun BlockerMasterHeader(
     isRunning: Boolean,
+    activeProfile: BlockingProfile,
     isBypassActive: Boolean,
     bypassRemainingSeconds: Int,
     needsPermissions: Boolean,
     onToggleService: () -> Unit,
+    onSelectProfile: (BlockingProfile) -> Unit,
     onNavigateToPermissions: () -> Unit
 ) {
     Card(
@@ -260,7 +265,7 @@ fun BlockerMasterHeader(
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = if (isRunning) "Shield is Active" else "Shield is OFF",
+                        text = if (isRunning) "Shield: ${activeProfile.name}" else "Shield is OFF",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = if (isRunning)
                             MaterialTheme.colorScheme.onPrimaryContainer
@@ -268,7 +273,7 @@ fun BlockerMasterHeader(
                             MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = if (isRunning) "Guarding selected apps" else "Toggle ON to start guarding",
+                        text = if (isRunning) "Enforcing profile rules" else "Select a profile to start guarding",
                         style = MaterialTheme.typography.bodySmall,
                         color = if (isRunning)
                             MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
@@ -284,6 +289,34 @@ fun BlockerMasterHeader(
                         { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(SwitchDefaults.IconSize)) }
                     } else null
                 )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Profile Mode Selector Row (OFF | RELAXED | STRICT)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                BlockingProfile.entries.forEach { profile ->
+                    val selected = activeProfile == profile
+                    FilterChip(
+                        selected = selected,
+                        onClick = { onSelectProfile(profile) },
+                        label = {
+                            Text(
+                                text = profile.name,
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    )
+                }
             }
 
             if (needsPermissions) {

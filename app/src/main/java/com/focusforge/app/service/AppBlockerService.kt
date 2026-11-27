@@ -20,7 +20,11 @@ import com.focusforge.app.BlockedAppActivity
 import com.focusforge.app.FocusForgeApp
 import com.focusforge.app.MainActivity
 import com.focusforge.app.R
+import com.focusforge.app.data.model.PolicySnapshot
 import com.focusforge.app.data.repository.BlockedAppRepository
+import com.focusforge.app.data.repository.PolicyStore
+import com.focusforge.app.enforcement.PollingGate
+import com.focusforge.app.enforcement.WatcherGateLogic
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,10 +47,14 @@ class AppBlockerService : Service() {
     @Inject
     lateinit var blockedAppRepository: BlockedAppRepository
 
+    @Inject
+    lateinit var policyStore: PolicyStore
+
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
     private val handler = Handler(Looper.getMainLooper())
     private var isPolling = false
-    private var blockedPackages: Set<String> = emptySet()
+    private lateinit var pollingGate: PollingGate
+    private var currentPolicy = PolicySnapshot()
 
     private val pollRunnable = object : Runnable {
         override fun run() {
@@ -64,9 +72,16 @@ class AppBlockerService : Service() {
         _isServiceRunning.value = true
         startForegroundWithNotification()
 
+        pollingGate = PollingGate(this) { isInteractive ->
+            Log.d(TAG, "Screen interactive changed: $isInteractive")
+            evaluatePollingState()
+        }
+        pollingGate.startListening()
+
+        // Enforcement reads ONLY immutable PolicySnapshot exposed by PolicyStore
         serviceScope.launch {
-            blockedAppRepository.getActiveBlockedApps().collect { apps ->
-                blockedPackages = apps.map { it.packageName }.toSet()
+            policyStore.policySnapshot.collect { snapshot ->
+                currentPolicy = snapshot
                 evaluatePollingState()
             }
         }
@@ -86,7 +101,10 @@ class AppBlockerService : Service() {
     }
 
     private fun evaluatePollingState() {
-        val shouldPoll = blockedPackages.isNotEmpty()
+        val shouldPoll = WatcherGateLogic.shouldPoll(
+            isScreenInteractive = pollingGate.isScreenInteractive(),
+            snapshot = currentPolicy
+        )
 
         if (shouldPoll && !isPolling) {
             startPolling()
@@ -123,8 +141,9 @@ class AppBlockerService : Service() {
             return
         }
 
-        // 2. Check if the app is blocked
-        val isBlocked = blockedPackages.contains(foregroundPackage)
+        // 2. Check if the app is blocked in PolicySnapshot
+        val isBlocked = currentPolicy.blockedApps.contains(foregroundPackage) ||
+            currentPolicy.privateBlockedApps.contains(foregroundPackage)
 
         if (isBlocked) {
             launchBlockedAppOverlay(foregroundPackage)
@@ -304,6 +323,7 @@ class AppBlockerService : Service() {
     }
 
     override fun onDestroy() {
+        pollingGate.stopListening()
         stopPolling()
         _isServiceRunning.value = false
         super.onDestroy()
