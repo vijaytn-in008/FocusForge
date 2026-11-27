@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -69,14 +70,37 @@ fun ForgeCard(
             } else Modifier
         )
 
+    val shape = RoundedCornerShape(cornerRadius)
+    val glassBackground = Brush.linearGradient(
+        colors = listOf(
+            containerColor.copy(alpha = 0.78f),
+            Color.White.copy(alpha = 0.08f),
+            containerColor.copy(alpha = 0.62f)
+        )
+    )
+    val glassBorder = Brush.linearGradient(
+        colors = listOf(
+            Color.White.copy(alpha = 0.24f),
+            borderColor.copy(alpha = 0.55f),
+            Color.White.copy(alpha = 0.08f)
+        )
+    )
+
     Surface(
         modifier = cardModifier.fillMaxWidth(),
-        shape = RoundedCornerShape(cornerRadius),
-        color = containerColor,
-        shadowElevation = elevation,
-        border = BorderStroke(1.dp, borderColor)
+        shape = shape,
+        color = Color.Transparent,
+        shadowElevation = elevation
     ) {
-        Column(content = content)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(glassBackground)
+                .border(BorderStroke(1.dp, glassBorder), shape)
+        ) {
+            Column(content = content)
+        }
     }
 }
 

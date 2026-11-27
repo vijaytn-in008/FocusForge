@@ -27,6 +27,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Coffee
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
@@ -502,37 +504,55 @@ private fun SevenDayFocusChartCard(
     val selectedDay = days.getOrElse(selectedIdx) { days.last() }
     val maxMinutes = (days.maxOfOrNull { it.totalMinutes } ?: 0).coerceAtLeast(30)
 
-    ForgeCard {
-        Column(modifier = Modifier.padding(18.dp)) {
+    ForgeCard(
+        borderColor = Emerald500.copy(alpha = 0.28f),
+        cornerRadius = 22.dp
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 12.dp)
+                ) {
                     Text(
                         text = "7-DAY FOCUS TREND",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Tap any bar to inspect that day",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = TimeUtils.formatMinutesToDuration(weekTotalMinutes),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "${TimeUtils.formatMinutesToDuration(weekDeepMinutes)} deep",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Emerald500
-                    )
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                    border = BorderStroke(1.dp, Emerald500.copy(alpha = 0.35f))
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = TimeUtils.formatMinutesToDuration(weekTotalMinutes),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "${TimeUtils.formatMinutesToDuration(weekDeepMinutes)} deep",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Emerald500
+                        )
+                    }
                 }
             }
 
@@ -615,37 +635,51 @@ private fun SevenDayFocusChartCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 12.dp)
+                    ) {
                         Text(
                             text = "${selectedDay.shortLabel} • ${selectedDay.dateLabel}",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "${selectedDay.sessionCount} session(s) • ${TimeUtils.formatMinutesToDuration(selectedDay.deepMinutes)} deep, ${TimeUtils.formatMinutesToDuration(selectedDay.shallowMinutes)} shallow",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Text(
-                        text = TimeUtils.formatMinutesToDuration(selectedDay.totalMinutes),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Emerald500
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Emerald500.copy(alpha = 0.14f),
+                        border = BorderStroke(1.dp, Emerald500.copy(alpha = 0.35f))
+                    ) {
+                        Text(
+                            text = TimeUtils.formatMinutesToDuration(selectedDay.totalMinutes),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Emerald500,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
                 }
             }
         }
@@ -674,7 +708,7 @@ private fun TodaySessionItem(session: Session) {
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
                             Icon(
-                                imageVector = if (isDeep) Icons.Default.Psychology else Icons.Default.EditNote,
+                                imageVector = if (isDeep) Icons.Default.Bolt else Icons.Default.Coffee,
                                 contentDescription = null,
                                 tint = if (isDeep) Emerald600 else Amber500,
                                 modifier = Modifier.size(13.dp)

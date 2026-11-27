@@ -28,9 +28,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CenterFocusStrong
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Coffee
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -433,7 +433,7 @@ fun TimerScreen(
                                 FocusTypeGlassCard(
                                     title = "Deep Work",
                                     subtitle = "Zero-distraction focus",
-                                    icon = Icons.Default.CenterFocusStrong,
+                                    icon = Icons.Default.Bolt,
                                     accentColor = Emerald500,
                                     selectedTextColor = Emerald600,
                                     isSelected = isDeep,
@@ -444,7 +444,7 @@ fun TimerScreen(
                                 FocusTypeGlassCard(
                                     title = "Shallow Work",
                                     subtitle = "Routine & admin tasks",
-                                    icon = Icons.Default.Checklist,
+                                    icon = Icons.Default.Coffee,
                                     accentColor = Amber500,
                                     selectedTextColor = Amber500,
                                     isSelected = !isDeep,
@@ -579,16 +579,17 @@ private fun FocusTypeGlassCard(
     val glassBackground = if (isSelected) {
         Brush.linearGradient(
             colors = listOf(
-                accentColor.copy(alpha = 0.24f),
-                Color.White.copy(alpha = 0.08f),
-                accentColor.copy(alpha = 0.07f)
+                accentColor.copy(alpha = 0.30f),
+                Color.White.copy(alpha = 0.14f),
+                accentColor.copy(alpha = 0.10f)
             )
         )
     } else {
         Brush.linearGradient(
             colors = listOf(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f),
-                Color.White.copy(alpha = 0.04f)
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
+                Color.White.copy(alpha = 0.08f),
+                MaterialTheme.colorScheme.surface.copy(alpha = 0.28f)
             )
         )
     }
@@ -596,16 +597,17 @@ private fun FocusTypeGlassCard(
     val glassBorder = if (isSelected) {
         Brush.linearGradient(
             colors = listOf(
-                accentColor.copy(alpha = 0.85f),
-                Color.White.copy(alpha = 0.35f),
+                Color.White.copy(alpha = 0.55f),
+                accentColor.copy(alpha = 0.90f),
                 accentColor.copy(alpha = 0.45f)
             )
         )
     } else {
         Brush.linearGradient(
             colors = listOf(
-                Color.White.copy(alpha = 0.14f),
-                MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                Color.White.copy(alpha = 0.22f),
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.30f),
+                Color.White.copy(alpha = 0.08f)
             )
         )
     }
