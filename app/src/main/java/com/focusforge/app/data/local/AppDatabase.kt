@@ -140,7 +140,8 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("DROP TABLE IF EXISTS `domain_block_categories`")
                 db.execSQL("DROP TABLE IF EXISTS `custom_domains`")
                 db.execSQL("DROP TABLE IF EXISTS `dns_block_log`")
-                db.execSQL("VACUUM")
+                // Note: VACUUM cannot run inside Room's migration transaction.
+                // It is executed outside the transaction in AppModule's RoomDatabase.Callback.onOpen().
             }
         }
     }
