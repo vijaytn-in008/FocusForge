@@ -2,20 +2,20 @@
 
 ## 1. System Philosophy & Rules
 Core rule: **NOTHING RUNS UNLESS SOMETHING NEEDS IT RIGHT NOW.**
-Always-on components are tiny and strictly event-driven. Heavy processes (e.g. AI/TTS/ASR) live in separate isolated processes loaded on demand and unloaded when idle.
+Always-on components are tiny and strictly event-driven.
 
 ### Layers:
-1. **UI (Compose)**: Onboarding, companion, dashboards, planner. Runs only when visible in foreground.
-2. **CORE (Main Process)**: Room DB, `PolicyStore` (`StateFlow<PolicySnapshot>`), `ProfileScheduler` (`AlarmManager` stub in Phase 3; scheduled blocks in Phase 4). Remains ~0% CPU at idle.
-3. **ENFORCEMENT**: Foreground-app watcher (`AppBlockerService` gated by `PollingGate` / `WatcherGateLogic`), DNS-only VPN (`DnsVpnService`, R3), block interceptor screen (`BlockedAppActivity`). Reads **ONLY** `PolicySnapshot`, never touches Room directly.
-4. **AI PROCESS (`:ai`, isolated & killable)**: Speech recognition, VAD, TTS, LLM providers (future phases).
-5. **BACKGROUND JOBS (WorkManager)**: Runs strictly while device is charging and idle.
+1. **UI (Compose)**: Home, Timer, Shield, History, Permissions, Protection, Private Rules (`FLAG_SECURE` + `BiometricPrompt`), Why Blocked. Runs only when visible in foreground.
+2. **CORE (Main Process)**: Room DB (v5), `PolicyStore` (`StateFlow<PolicySnapshot>`), `PrivateListStore` + `PrivateVault` (AndroidKeyStore AES-256-GCM), `ProfileScheduler` (`AlarmManager` stub), `RuleChangeGate` (stub).
+3. **ENFORCEMENT**:
+   - `AppBlockerService` gated by `PollingGate` / `WatcherGateLogic` (`UsageEvents`, screen ON + active profile + non-empty blocked apps).
+   - `DnsVpnService`: DNS-only TUN (`10.0.0.1/32`, `fd00::1/128`), `BlocklistEngine` (memory-mapped sorted 64-bit FNV-1a binary search), `SafetyAllowlist`, `DnsPacketParser` (IPv4/IPv6, UDP + TCP fallback, EDNS, NXDOMAIN / `0.0.0.0` / SERVFAIL), `VpnHealthMonitor` (fail-open), `DnsDecisionBuffer` (debug-only opt-in 300-entry ring buffer).
+   - `BlockedAppActivity`: "Time to Focus" interceptor with active Timer/Profile context and Private App masking.
 
 ### Invariants & Safety Guarantees:
-- **Never lock user out**: Phone, SMS, Dialer, System Settings, Emergency Bypass (60s hold-to-unlock) are hard-exempt and never blocked.
-- **Fail OPEN**: If enforcement or VPN fails, all normal networking and app launching continue working unimpeded. A persistent notification offers a 1-tap restart.
-- **Local-first & Private**: 100% on-device. No analytics, no telemetry, no tracking. No queried domain is ever written to disk or logs; only aggregate counters.
-- **Rule Changes**: Strengthening rules is instant. Weakening rules will be governed by a tamper delay (`RuleChangeGate`, Phase 5).
+- **Never lock user out**: Phone, SMS, Dialer, System Settings, Emergency Bypass (3s hold-to-unlock) are hard-exempt.
+- **Fail OPEN**: Repeated upstream DNS errors or revoked VPN automatically stop the tunnel and show `"Protection paused: network issue"` with a 1-tap restart.
+- **Local-first & Private**: Zero queried domains written to disk or logs. Private entries are hashed (and optionally Keystore-encrypted), excluded from backups, and never shown in notifications or logs.
 
 ---
 
@@ -27,40 +27,12 @@ Always-on components are tiny and strictly event-driven. Heavy processes (e.g. A
 | `RELAXED` | Active (if non-empty) | User pref (default ON) | User pref (default OFF) | Inactive | User pref (default ON) |
 | `STRICT` | Active (if non-empty) | User pref (default ON) | User pref (default OFF) | User pref (default OFF) | User pref (default ON) |
 
-- **Baseline (`ADULT_CORE` + `DOH_ENDPOINTS`)**: High-confidence adult filter + DoH bypass prevention sit underneath as quiet infrastructure.
-- **`ADULT_EXTENDED`**: Aggressive adult list, OFF by default, opt-in with warning.
-- **`DISTRACTION`**: Never a domain-wide default; applies only under `STRICT` (and future Phase 4 scheduled/trigger profiles).
-
 ---
 
-## 3. Component Diagram
+## 3. DNS Decision Order (First Match Wins)
 
-```mermaid
-flowchart TD
-    subgraph "UI Layer (Jetpack Compose)"
-        UI_Home["HomeScreen"]
-        UI_Timer["TimerScreen"]
-        UI_Shield["BlockedAppsScreen / Shield"]
-        UI_Hist["HistoryScreen"]
-    end
-
-    subgraph "Core Layer (Main Process)"
-        DB[("Room Database (SQLite v5)")]
-        PStore["PolicyStore\nStateFlow‹PolicySnapshot›"]
-        Sched["ProfileScheduler (AlarmManager stub)"]
-        DB -->|"Blocked apps"| PStore
-        Sched -->|"Transitions profile"| PStore
-    end
-
-    subgraph "Enforcement Layer"
-        Gate["PollingGate / WatcherGateLogic"]
-        ABService["AppBlockerService\n(polls UsageEvents only when screen ON & active)"]
-        PStore -->|"Exposes snapshot"| ABService
-        Gate -->|"Pauses/Resumes"| ABService
-    end
-
-    subgraph "Interceptor UI"
-        BlockAct["BlockedAppActivity\n(Overlay Interceptor)"]
-        ABService -->|"Detects blocked app"| BlockAct
-    end
-```
+1. **Built-in Safety Allowlist** (non-removable): Android connectivity-check/captive-portal, OS/Play/FCM/NTP, emergency/gov services, configured upstream bootstrap hostnames.
+2. **User Allowlist** (hashed): overrides `DISTRACTION` and `PRIVATE` rules (does not bypass `ADULT`).
+3. **Private List** (hashed): user-managed discreet blocks.
+4. **Category Tiers** (`ADULT_CORE`, `ADULT_EXTENDED`, `DISTRACTION`, `DOH_ENDPOINTS`) per `PolicySnapshot.enabledTiers`.
+5. **Default ALLOW**: forwarded via protected socket (`VpnService.protect()` + physical network binding) to selected upstream resolver with 1 retry and TCP fallback on `TC=1` (`SERVFAIL` on failure).

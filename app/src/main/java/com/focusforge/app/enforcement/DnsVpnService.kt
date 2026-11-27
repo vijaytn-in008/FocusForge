@@ -125,6 +125,9 @@ class DnsVpnService : VpnService() {
 
         serviceScope.launch {
             policyStore.policySnapshot.collect { snapshot ->
+                val rulesChanged = currentPolicy.enabledTiers != snapshot.enabledTiers ||
+                    currentPolicy.privateBlockedDomainHashes != snapshot.privateBlockedDomainHashes ||
+                    currentPolicy.customAllowedDomainHashes != snapshot.customAllowedDomainHashes
                 currentPolicy = snapshot
                 val now = System.currentTimeMillis()
                 if (snapshot.isPaused(now)) {
@@ -137,6 +140,10 @@ class DnsVpnService : VpnService() {
                     stopVpn()
                 } else if (snapshot.isDnsBlockingEffective(now) && !isRunning && policyStore.isDnsProtectionEnabled.value) {
                     startVpnTunnel()
+                } else if (isRunning && rulesChanged) {
+                    // Re-establish TUN so Android netd flushes cached DNS entries for newly added/removed rules
+                    Log.i(TAG, "DNS policy rules updated; refreshing TUN to flush system DNS cache")
+                    restartTunnel()
                 }
             }
         }

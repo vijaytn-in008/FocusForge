@@ -1,94 +1,75 @@
 # FocusForge
 
-> Free, open-source (GPLv3), local-first Android app designed to block pornography and doom-scrolling apps, plan deep-work time blocks (per Cal Newport's *Deep Work*), and track exam preparation progress.
+> Free, open-source (GPLv3), local-first Android app designed to block pornography and distraction apps/websites, plan deep-work time blocks, and track focus progress.
 
 ---
 
 ## Philosophy and Principles
 
-- **100% Local-First**: No accounts, no backend servers, no telemetry, no analytics, no network permissions required for core functionality. Your study habits and history never leave your device.
-- **Safety Guarantee**: Never locks you out of your device. Phone calls, SMS, the system dialer, system settings, and an emergency bypass are always accessible.
-- **F-Droid and Sideload Ready**: Zero dependency on proprietary Google Play Services. Builds strictly with free and open-source tooling.
+- **100% Local-First**: No accounts, no backend servers, no telemetry, no analytics. Your study habits, session logs, and filter rules never leave your device.
+- **Safety Guarantee**: Never locks you out of your device. Phone calls, SMS, the system dialer, system settings, and an emergency bypass are always accessible. Fails **OPEN** if anything in DNS enforcement misbehaves.
+- **Privacy Guarantee**: No queried or blocked domain name is ever written to disk or logs. Only aggregate daily counters are stored.
 - **GPLv3 Licensed**: Free software for everyone, forever.
 
 ---
 
-## Features (Phase 1 Status)
+## Features (Phases 1–3)
 
-- **Focus Timer**: Pomodoro or custom duration timers.
-- **Foreground Service**: Persistent foreground service keeps timers running accurately even if the app process is closed or battery optimization kicks in.
-- **Session Log**: Record each study block with Subject, Topic, Duration, Focus Rating (1-5), and Type (`DEEP` vs `SHALLOW`).
-- **Local Persistence**: Powered by SQLite and Room, reactively updating the UI via Kotlin Coroutines `StateFlow`.
-- **Modern Jetpack Compose UI**: Clean Material 3 design with light and dark theme support.
+- **Phase 1 — Focus Timer & Session Log**: Persistent countdown service, Deep vs. Shallow work tracking, Room database.
+- **Phase 2 — App Shield & Screen Time**: `UsageEvents`-based foreground app blocker gated by screen ON/OFF (`PollingGate`), "Time to Focus" interceptor (`BlockedAppActivity`), wall-clock deduplicated screen time breakdown.
+- **Phase 3 — Local DNS Filter & Private Rules**:
+  - **DNS-only VPN (`DnsVpnService`)**: Routes only virtual DNS (`10.0.0.1/32` and `fd00::1/128`); all other traffic bypasses the app.
+  - **Memory-mapped FNV-1a Blocklist Engine**: Suffix-aware binary search over sorted 64-bit hashes (`ADULT_CORE` ON by default, `ADULT_EXTENDED` OFF by default, `DISTRACTION` under `STRICT` profile only, `DOH_ENDPOINTS`). Protected by Mozilla Public Suffix List + Tranco Top-10K false-positive guard.
+  - **User Allowlist**: Stored as hashes only; overrides distraction/private rules without bypassing adult filters.
+  - **Discreet Private List**: Hash-only matching, optional Keystore AES-256-GCM encrypted vault, `BiometricPrompt` lock, `FLAG_SECURE`, masked display (`p•••••.com`) with 10s auto-hide, IME no-personalized-learning flags, clipboard clear on paste, Share-to-FocusForge, and backup exclusions.
+  - **Transparency & Self-Repair**: Opt-in in-memory 300-entry DNS decision buffer, "Why was this blocked?" screen with one-tap false-positive reporting, Private DNS strict-mode detection, fail-open health monitor, and 5-minute pause.
 
 ---
 
-## Architecture
+## Privacy & What DNS Blocking Can and Cannot Do
 
-FocusForge is built using modern Android architecture guidelines:
+### What DNS Blocking Covers
+- Blocks domain lookups system-wide across browsers (Chrome, Firefox, etc., normal and incognito/private tabs) and apps when using system DNS.
+- Blocks known public DoH endpoints (`DOH_ENDPOINTS`) so browsers fall back to local DNS.
 
-```
-UI Layer (Jetpack Compose + Material 3)
-   ▲               ▲               ▲
-   │               │               │
-HomeViewModel  TimerViewModel  HistoryViewModel
-   ▲               ▲               ▲
-   │               ▼               │
-   │          TimerService         │
-   │               │               │
-   └─────────► SessionRepository ◄─┘
-                   │
-                   ▼
-               Room (SQLite)
-```
+### What DNS Blocking Cannot Cover
+- **Hard-coded IP DoH**: If a browser or app connects directly to a DoH resolver by IP address (e.g. `1.1.1.1` / `8.8.8.8`) without a DNS lookup, local DNS filtering cannot intercept it.
+- **Android Private DNS Strict Mode**: Setting Android's Private DNS to a custom hostname bypasses the VPN DNS path (FocusForge detects this and warns you).
+- **Other Devices / Networks**: FocusForge protects only the phone it is installed on, while the VPN is active.
+- **Cached Connections**: Existing open connections or cached DNS entries may persist briefly until closed or refreshed.
 
-- **Pattern**: MVVM (Model-View-ViewModel) with unidirectional data flow (UDF).
-- **Dependency Injection**: Hilt.
-- **Concurrency**: Kotlin Coroutines & Flow.
-- **Database**: Android Jetpack Room with custom TypeConverters.
+### Privacy Statement
+- FocusForge never sends your DNS queries, browsing history, or personal lists to any FocusForge server.
+- Allowed DNS queries are forwarded only to your chosen upstream resolver (default: your active network's own DNS servers).
+- **No queried domain is ever written to disk or logs.**
+
+### Privacy of Your Private List
+- **Protected**:
+  - Stored as 64-bit FNV-1a hashes (or optional Keystore AES-256-GCM vault unlocked only via biometric/device credential).
+  - Never appears in notifications (`VISIBILITY_PRIVATE`), lock-screen content, Room logs, decision buffer, "Why was this blocked?", or Android Auto-Backup / D2D transfer.
+  - `FLAG_SECURE` blocks screenshots, screen recording, and recents thumbnails on Private List screens.
+  - Input fields disable autofill, suggestions, and personalized keyboard learning; paste-import clears the clipboard.
+- **Not Protected (Platform / Physical Limits)**:
+  - Your keyboard's own history if a third-party IME ignores `IME_FLAG_NO_PERSONALIZED_LEARNING`.
+  - Your browser's own history/cache.
+  - Router or ISP DNS logs for non-blocked queries.
+  - Anyone who knows your device PIN/pattern or has a fingerprint enrolled on the phone.
+  - Rooted devices with privileged memory/storage access.
 
 ---
 
 ## Building From Source
 
-### Prerequisites
-- JDK 17 or JDK 21
-- Android SDK (API 34, Build Tools 34.0.0+)
-- Gradle 8.7+ (or use `./gradlew`)
-
-### Build Commands
-
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/FocusForge.git
-cd FocusForge
+# Verify blocklists & false-positive guard
+python3 tools/verify_blocklists.py
 
-# Build debug APK
-./gradlew assembleDebug
-
-# Output APK location:
-# app/build/outputs/apk/debug/app-debug.apk
+# Run unit tests & build debug APK
+./gradlew testDebugUnitTest assembleDebug
 
 # Install onto a connected device via ADB
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
-
----
-
-## Testing Phase 1 on Your Device
-
-1. Install the debug APK via ADB or sideload it onto your phone.
-2. Grant **Notification permission** when prompted (required on Android 13+ to display the timer countdown).
-3. **Timer Screen**:
-   - Enter a Subject (e.g. *Physics*) and Topic (e.g. *Thermodynamics*).
-   - Select **Deep Work** or **Shallow Work**.
-   - Tap preset buttons (25m, 50m) or choose custom minutes, then tap **Start**.
-   - Press the Home button or swipe the app away. Notice the persistent notification updating every second.
-   - When the timer finishes, a completion dialog prompts for a **1-5 Star Focus Rating**.
-4. **History Screen**:
-   - Review your logged sessions in reverse chronological order.
-5. **Home Screen**:
-   - Check today's Deep Work vs Shallow Work summary and total focused time.
 
 ---
 

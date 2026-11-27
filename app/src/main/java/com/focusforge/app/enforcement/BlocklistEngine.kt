@@ -232,6 +232,8 @@ class BlocklistEngine @Inject constructor(
         if (isInitialized) return
         try {
             val destDir = File(context.filesDir, "blocklists").apply { mkdirs() }
+            // Clean up legacy v1 blocklist file if present
+            File(destDir, "adult.bin").delete()
             val manifestJson = context.assets.open("blocklists/manifest.json").bufferedReader().use { it.readText() }
             val manifest = JSONObject(manifestJson)
             val assetsObj = manifest.getJSONObject("assets")
