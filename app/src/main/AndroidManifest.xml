@@ -32,10 +32,6 @@
     <!-- Battery optimization exemption request -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
-    <!-- Required strictly for VpnService to forward non-blocked DNS queries to upstream resolver -->
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
     <application
         android:name=".FocusForgeApp"
         android:allowBackup="true"
@@ -85,20 +81,6 @@
                 android:value="Monitors foreground apps to block distractions during deep work" />
         </service>
 
-        <!-- DNS VPN Service for Domain & Adult Site Blocking -->
-        <service
-            android:name=".enforcement.DnsVpnService"
-            android:exported="false"
-            android:permission="android.permission.BIND_VPN_SERVICE"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Local DNS filtering to block adult content and distractions" />
-            <intent-filter>
-                <action android:name="android.net.VpnService" />
-            </intent-filter>
-        </service>
-
         <!-- Boot Completed Receiver: restores blocker service on reboot -->
         <receiver
             android:name=".receiver.BootCompletedReceiver"
@@ -108,19 +90,6 @@
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
-
-        <!-- On-Device Browser Content & Query Accessibility Inspector -->
-        <service
-            android:name=".service.BrowserAccessibilityService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/browser_accessibility_service_config" />
-        </service>
 
     </application>
 

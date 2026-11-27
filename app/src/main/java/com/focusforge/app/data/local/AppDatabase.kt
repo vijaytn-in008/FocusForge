@@ -7,19 +7,11 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.focusforge.app.data.local.dao.BlockedAppAttemptDao
 import com.focusforge.app.data.local.dao.BlockedAppDao
-import com.focusforge.app.data.local.dao.CustomDomainDao
-import com.focusforge.app.data.local.dao.DnsBlockLogDao
-import com.focusforge.app.data.local.dao.DomainBlockCategoryDao
 import com.focusforge.app.data.local.dao.EmergencyBypassLogDao
-import com.focusforge.app.data.local.dao.ProfileDao
 import com.focusforge.app.data.local.dao.SessionDao
 import com.focusforge.app.data.local.entity.BlockedAppAttemptEntity
 import com.focusforge.app.data.local.entity.BlockedAppEntity
-import com.focusforge.app.data.local.entity.CustomDomainEntity
-import com.focusforge.app.data.local.entity.DnsBlockLogEntity
-import com.focusforge.app.data.local.entity.DomainBlockCategoryEntity
 import com.focusforge.app.data.local.entity.EmergencyBypassLogEntity
-import com.focusforge.app.data.local.entity.ProfileEntity
 import com.focusforge.app.data.local.entity.SessionEntity
 
 /**
@@ -31,13 +23,9 @@ import com.focusforge.app.data.local.entity.SessionEntity
         SessionEntity::class,
         BlockedAppEntity::class,
         EmergencyBypassLogEntity::class,
-        BlockedAppAttemptEntity::class,
-        ProfileEntity::class,
-        DomainBlockCategoryEntity::class,
-        CustomDomainEntity::class,
-        DnsBlockLogEntity::class
+        BlockedAppAttemptEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -46,10 +34,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun blockedAppDao(): BlockedAppDao
     abstract fun emergencyBypassLogDao(): EmergencyBypassLogDao
     abstract fun blockedAppAttemptDao(): BlockedAppAttemptDao
-    abstract fun profileDao(): ProfileDao
-    abstract fun domainBlockCategoryDao(): DomainBlockCategoryDao
-    abstract fun customDomainDao(): CustomDomainDao
-    abstract fun dnsBlockLogDao(): DnsBlockLogDao
 
     companion object {
         const val DATABASE_NAME = "focusforge_db"
@@ -147,6 +131,16 @@ abstract class AppDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS `profiles`")
+                db.execSQL("DROP TABLE IF EXISTS `domain_block_categories`")
+                db.execSQL("DROP TABLE IF EXISTS `custom_domains`")
+                db.execSQL("DROP TABLE IF EXISTS `dns_block_log`")
+                db.execSQL("VACUUM")
             }
         }
     }

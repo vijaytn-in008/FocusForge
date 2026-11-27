@@ -22,10 +22,8 @@ import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material.icons.filled.Security
-import android.net.VpnService
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -164,22 +162,6 @@ fun PermissionsScreen(
                     try {
                         context.startActivity(viewModel.getBatteryOptimizationIntent())
                     } catch (_: Exception) {}
-                }
-            )
-
-            // 4. Local DNS Protection (VPN) Card
-            PermissionItemCard(
-                icon = Icons.Default.Public,
-                title = "Local DNS Website Filter",
-                description = "Filters adult content and distraction websites on-device. Zero data leaves your device.",
-                isGranted = (VpnService.prepare(context) == null),
-                onGrantClick = {
-                    val intent = VpnService.prepare(context)
-                    if (intent != null) {
-                        try {
-                            context.startActivity(intent)
-                        } catch (_: Exception) {}
-                    }
                 }
             )
 

@@ -47,17 +47,9 @@ class FocusForgeApp : Application() {
                 setShowBadge(false)
             }
 
-            val vpnChannel = NotificationChannel(
-                VPN_CHANNEL_ID,
-                "DNS Protection Guard",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Ongoing notification for DNS website filtering"
-                setShowBadge(false)
-            }
-
             val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager?.createNotificationChannels(listOf(timerChannel, alertChannel, blockerChannel, vpnChannel))
+            notificationManager?.createNotificationChannels(listOf(timerChannel, alertChannel, blockerChannel))
+            notificationManager?.deleteNotificationChannel("focusforge_vpn_channel")
         }
     }
 
@@ -65,6 +57,5 @@ class FocusForgeApp : Application() {
         const val TIMER_CHANNEL_ID = "focusforge_timer_channel"
         const val ALERT_CHANNEL_ID = "focusforge_alert_channel"
         const val BLOCKER_CHANNEL_ID = "focusforge_blocker_channel"
-        const val VPN_CHANNEL_ID = "focusforge_vpn_channel"
     }
 }

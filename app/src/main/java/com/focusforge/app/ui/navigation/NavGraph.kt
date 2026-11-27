@@ -11,8 +11,6 @@ import com.focusforge.app.ui.blocker.BlockedAppsViewModel
 import com.focusforge.app.ui.history.HistoryScreen
 import com.focusforge.app.ui.home.HomeScreen
 import com.focusforge.app.ui.permissions.PermissionsScreen
-import com.focusforge.app.ui.protection.ProtectionScreen
-import com.focusforge.app.ui.protection.ProtectionViewModel
 import com.focusforge.app.ui.timer.TimerScreen
 
 @Composable
@@ -54,9 +52,6 @@ fun NavGraph(
                 onNavigateToPermissions = {
                     navController.navigate(Screen.Permissions.route)
                 },
-                onNavigateToProtection = {
-                    navController.navigate(Screen.Protection.route)
-                },
                 viewModel = blockedAppsViewModel
             )
         }
@@ -70,16 +65,6 @@ fun NavGraph(
                 onNavigateBack = {
                     navController.popBackStack()
                 }
-            )
-        }
-
-        composable(Screen.Protection.route) {
-            val protectionViewModel: ProtectionViewModel = hiltViewModel()
-            ProtectionScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                viewModel = protectionViewModel
             )
         }
     }
