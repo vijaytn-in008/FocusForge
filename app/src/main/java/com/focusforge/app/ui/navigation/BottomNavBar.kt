@@ -37,13 +37,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 fun BottomNavBar(navController: NavController) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val shieldRoutes = remember {
-        setOf(
-            Screen.Shield.route,
-            Screen.Protection.route,
-            Screen.PrivateList.route,
-            Screen.WhyBlocked.route,
-            Screen.Permissions.route
-        )
+        setOf("shield", "protection", "private_list", "why_blocked", "permissions")
     }
     val currentRoute = navBackStackEntry?.destination?.route
 

@@ -76,6 +76,7 @@ sealed class Screen(
     )
 
     companion object {
-        val bottomNavScreens = listOf(Home, Timer, Shield, History)
+        val bottomNavScreens: List<Screen>
+            get() = listOf(Home, Timer, Shield, History)
     }
 }
