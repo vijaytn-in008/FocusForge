@@ -53,7 +53,10 @@ jobs:
           FOCUSFORGE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           FOCUSFORGE_KEYSTORE_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           FOCUSFORGE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew testStandardDebugUnitTest testFullDebugUnitTest assembleStandardRelease assembleFullRelease --stacktrace
+        run: |
+          ./gradlew testStandardDebugUnitTest testFullDebugUnitTest --max-workers=2 --no-daemon -Dorg.gradle.jvmargs="-Xmx3072m" --stacktrace
+          ./gradlew assembleStandardRelease --max-workers=2 --no-daemon -Dorg.gradle.jvmargs="-Xmx3072m" --stacktrace
+          ./gradlew assembleFullRelease --max-workers=2 --no-daemon -Dorg.gradle.jvmargs="-Xmx3072m" --stacktrace
 
       - name: Prepare Named Release APKs
         run: |

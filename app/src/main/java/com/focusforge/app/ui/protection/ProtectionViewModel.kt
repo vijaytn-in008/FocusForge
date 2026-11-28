@@ -14,6 +14,7 @@ import com.focusforge.app.enforcement.DnsDecisionBuffer
 import com.focusforge.app.enforcement.DnsVpnService
 import com.focusforge.app.enforcement.DomainCheckResult
 import com.focusforge.app.enforcement.DomainNormalizer
+import com.focusforge.app.enforcement.PrivateMasker
 import com.focusforge.app.enforcement.RuleChangeGate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -23,6 +24,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+data class AllowedDomainItem(
+    val hash: Long,
+    val maskedName: String,
+    val rawDomain: String?
+)
 
 data class ProtectionUiState(
     val policySnapshot: PolicySnapshot = PolicySnapshot(),
@@ -38,6 +45,8 @@ data class ProtectionUiState(
     val pauseEventsCount: Int = 0,
     val allowDomainInput: String = "",
     val allowActionMessage: String? = null,
+    val allowedDomainItems: List<AllowedDomainItem> = emptyList(),
+    val revealedAllowHashes: Set<Long> = emptySet(),
     val testDomainInput: String = "",
     val testDomainResult: DomainCheckResult? = null,
     val isDecisionBufferEnabled: Boolean = false,
@@ -121,6 +130,24 @@ class ProtectionViewModel @Inject constructor(
         viewModelScope.launch {
             decisionBuffer.entries.collect { entries ->
                 _uiState.value = _uiState.value.copy(decisionBufferCount = entries.size)
+            }
+        }
+
+        viewModelScope.launch {
+            combine(
+                policyStore.policySnapshot,
+                policyStore.customAllowedDomains
+            ) { snapshot, domainMap ->
+                snapshot.customAllowedDomainHashes.map { hash ->
+                    val raw = domainMap[hash]
+                    AllowedDomainItem(
+                        hash = hash,
+                        maskedName = raw?.let { PrivateMasker.maskDomain(it) } ?: "••••• (${java.lang.Long.toHexString(hash).take(6)})",
+                        rawDomain = raw
+                    )
+                }.sortedBy { it.rawDomain ?: it.maskedName }
+            }.collect { items ->
+                _uiState.value = _uiState.value.copy(allowedDomainItems = items)
             }
         }
     }
@@ -246,6 +273,25 @@ class ProtectionViewModel @Inject constructor(
                 _uiState.value.copy(allowActionMessage = "No matching allow rule found for that domain.")
             }
         }
+    }
+
+    fun removeAllowDomainByHash(hash: Long) {
+        viewModelScope.launch {
+            val removed = policyStore.removeCustomAllowDomainByHash(hash)
+            if (removed) {
+                _uiState.value = _uiState.value.copy(
+                    revealedAllowHashes = _uiState.value.revealedAllowHashes - hash,
+                    allowActionMessage = "Allow rule removed."
+                )
+            }
+        }
+    }
+
+    fun toggleRevealAllowDomain(hash: Long) {
+        val current = _uiState.value.revealedAllowHashes
+        _uiState.value = _uiState.value.copy(
+            revealedAllowHashes = if (hash in current) current - hash else current + hash
+        )
     }
 
     fun onTestDomainInputChanged(value: String) {

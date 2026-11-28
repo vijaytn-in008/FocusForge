@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -285,15 +286,50 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    LinearProgressIndicator(
-                        progress = { animatedRatio },
+                    val totalFocusMin = uiState.todayDeepMinutes + uiState.shallowMinutes
+                    val deepSegmentRatio by animateFloatAsState(
+                        targetValue = if (totalFocusMin > 0) uiState.todayDeepMinutes.toFloat() / totalFocusMin else 0f,
+                        animationSpec = spring(stiffness = Spring.StiffnessLow),
+                        label = "deepSegmentRatio"
+                    )
+                    val shallowSegmentRatio by animateFloatAsState(
+                        targetValue = if (totalFocusMin > 0) uiState.shallowMinutes.toFloat() / totalFocusMin else 0f,
+                        animationSpec = spring(stiffness = Spring.StiffnessLow),
+                        label = "shallowSegmentRatio"
+                    )
+
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp)),
-                        color = Emerald100,
-                        trackColor = Color.White.copy(alpha = 0.18f)
-                    )
+                            .height(10.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Color.White.copy(alpha = 0.18f))
+                    ) {
+                        if (deepSegmentRatio > 0f) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .weight(deepSegmentRatio)
+                                    .background(Emerald100)
+                            )
+                        }
+                        if (shallowSegmentRatio > 0f) {
+                            if (deepSegmentRatio > 0f) {
+                                Spacer(
+                                    modifier = Modifier
+                                        .width(2.dp)
+                                        .fillMaxHeight()
+                                        .background(Emerald700.copy(alpha = 0.65f))
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .weight(shallowSegmentRatio)
+                                    .background(Amber500)
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(10.dp))
 
@@ -833,7 +869,7 @@ private fun SevenDayFocusChartCard(
     if (days.isEmpty()) return
     var selectedIdx by remember(days.size) { mutableIntStateOf(days.lastIndex) }
     val selectedDay = days.getOrElse(selectedIdx) { days.last() }
-    val maxMinutes = (days.maxOfOrNull { it.totalMinutes } ?: 0).coerceAtLeast(30)
+    val maxMinutes = (days.maxOfOrNull { it.deepMinutes } ?: 0).coerceAtLeast(30)
 
     ForgeCard(
         borderColor = Emerald500.copy(alpha = 0.28f),
@@ -851,14 +887,14 @@ private fun SevenDayFocusChartCard(
                         .padding(end = 12.dp)
                 ) {
                     Text(
-                        text = "7-DAY FOCUS TREND",
+                        text = "7-DAY DEEP FOCUS",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Tap any bar to inspect that day",
+                        text = "Deep work hours • tap a bar",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -873,15 +909,15 @@ private fun SevenDayFocusChartCard(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                     ) {
                         Text(
-                            text = TimeUtils.formatMinutesToDuration(weekTotalMinutes),
+                            text = TimeUtils.formatMinutesToDuration(weekDeepMinutes),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = Emerald500
                         )
                         Text(
-                            text = "${TimeUtils.formatMinutesToDuration(weekDeepMinutes)} deep",
+                            text = "deep work",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Emerald500
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -899,16 +935,10 @@ private fun SevenDayFocusChartCard(
                 days.forEachIndexed { idx, day ->
                     val isSelected = idx == selectedIdx
                     val deepRatio = day.deepMinutes.toFloat() / maxMinutes.toFloat()
-                    val shallowRatio = day.shallowMinutes.toFloat() / maxMinutes.toFloat()
                     val animatedDeepHeight by animateDpAsState(
                         targetValue = if (day.deepMinutes > 0) (76f * deepRatio).dp.coerceAtLeast(6.dp) else 0.dp,
                         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
                         label = "deepBar"
-                    )
-                    val animatedShallowHeight by animateDpAsState(
-                        targetValue = if (day.shallowMinutes > 0) (76f * shallowRatio).dp.coerceAtLeast(6.dp) else 0.dp,
-                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                        label = "shallowBar"
                     )
                     val highlightBg by animateColorAsState(
                         targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f) else Color.Transparent,
@@ -933,26 +963,13 @@ private fun SevenDayFocusChartCard(
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
                             contentAlignment = Alignment.BottomCenter
                         ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.Bottom
-                            ) {
-                                if (day.shallowMinutes > 0) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(animatedShallowHeight)
-                                            .background(Amber500)
-                                    )
-                                }
-                                if (day.deepMinutes > 0) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(animatedDeepHeight)
-                                            .background(Emerald500)
-                                    )
-                                }
+                            if (day.deepMinutes > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(animatedDeepHeight)
+                                        .background(Emerald500)
+                                )
                             }
                         }
                         Spacer(modifier = Modifier.height(6.dp))
@@ -993,7 +1010,7 @@ private fun SevenDayFocusChartCard(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "${selectedDay.sessionCount} session(s) • ${TimeUtils.formatMinutesToDuration(selectedDay.deepMinutes)} deep, ${TimeUtils.formatMinutesToDuration(selectedDay.shallowMinutes)} shallow",
+                            text = "${TimeUtils.formatMinutesToDuration(selectedDay.deepMinutes)} deep focus",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1004,7 +1021,7 @@ private fun SevenDayFocusChartCard(
                         border = BorderStroke(1.dp, Emerald500.copy(alpha = 0.35f))
                     ) {
                         Text(
-                            text = TimeUtils.formatMinutesToDuration(selectedDay.totalMinutes),
+                            text = TimeUtils.formatMinutesToDuration(selectedDay.deepMinutes),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = Emerald500,

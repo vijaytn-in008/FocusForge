@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -166,12 +167,11 @@ fun TimerScreen(
             }
         }
 
-        // Pending Unsaved Journey Banner
-        if (!isTimerActive && uiState.pendingJourney != null) {
-            item {
-                val pending = uiState.pendingJourney!!
+        // Pending Unsaved Journey Banners (preserves all saved-for-later journeys)
+        if (!isTimerActive && uiState.pendingJourneys.isNotEmpty()) {
+            items(uiState.pendingJourneys, key = { "${it.startTimeMillis}_${it.subject}" }) { pending ->
                 Card(
-                    onClick = { viewModel.openPendingJourney() },
+                    onClick = { viewModel.openPendingJourney(pending) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
@@ -193,7 +193,7 @@ fun TimerScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Text(
-                                text = "Tap to record & save your journey or discard",
+                                text = if (pending.note.isNotBlank()) pending.note else "Tap to record & save your journey or discard",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                             )
@@ -481,6 +481,7 @@ fun TimerScreen(
         TimerCompletionFullScreen(
             subject = timerState.subject.ifBlank { "General Focus" },
             durationSeconds = elapsedSec,
+            targetSeconds = timerState.totalSeconds,
             sessionType = timerState.sessionType,
             initialNote = "",
             currentRating = earlyRating,
@@ -507,7 +508,7 @@ fun TimerScreen(
             subject = uiState.completedSubject,
             durationSeconds = uiState.completedDurationSeconds,
             sessionType = uiState.completedSessionType,
-            initialNote = uiState.pendingJourney?.note ?: "",
+            initialNote = uiState.activePendingJourney?.note ?: "",
             currentRating = uiState.selectedRating,
             onRatingSelected = viewModel::onRatingChanged,
             onSaveNow = { note -> viewModel.saveCompletedSession(uiState.selectedRating, note) },
@@ -688,6 +689,7 @@ fun TimerCompletionFullScreen(
     sessionType: SessionType,
     initialNote: String,
     currentRating: Int,
+    targetSeconds: Int = durationSeconds,
     isPartialCompletion: Boolean = false,
     onRatingSelected: (Int) -> Unit,
     onSaveNow: (String) -> Unit,
@@ -695,7 +697,10 @@ fun TimerCompletionFullScreen(
     onDiscard: () -> Unit
 ) {
     var reflectionNote by remember(initialNote) { mutableStateOf(initialNote) }
-    var goalStatus by remember { mutableStateOf("Goal Achieved") }
+    var journeyState by remember(isPartialCompletion) {
+        mutableStateOf(if (isPartialCompletion) "In Progress" else "Completed")
+    }
+    var nextAction by remember { mutableStateOf("") }
     val accentColor = if (sessionType == SessionType.DEEP) Emerald500 else Amber500
     val ratingDescriptions = listOf(
         1 to "Distracted • Tough session, still showed up",
@@ -704,15 +709,21 @@ fun TimerCompletionFullScreen(
         4 to "High Focus • Smooth study flow",
         5 to "Deep Flow • Peak concentration achieved"
     )
-    val goalOptions = listOf("Goal Achieved", "In Progress", "Not Achieved")
-    val quickTags = listOf("Deep flow", "Zero distractions", "Milestone hit", "Needs review")
+    val stateOptions = if (isPartialCompletion) {
+        listOf("In Progress", "Completed", "Paused")
+    } else {
+        listOf("Completed", "In Progress", "Needs Review")
+    }
+    val nextActionChips = listOf("Continue next block", "Review notes", "Wrap up")
+    val quickTags = listOf("Deep flow", "Zero distractions", "Milestone hit")
     val buildFinalNote: () -> String = {
-        val base = reflectionNote.trim()
-        if (isPartialCompletion) {
-            if (base.isNotEmpty()) "[$goalStatus] $base" else "[$goalStatus]"
-        } else {
-            base
+        val prefix = if (isPartialCompletion) "[Partial • $journeyState]" else "[$journeyState]"
+        val parts = buildList {
+            add(prefix)
+            if (nextAction.isNotBlank()) add("Next: ${nextAction.trim()}")
+            if (reflectionNote.isNotBlank()) add(reflectionNote.trim())
         }
+        parts.joinToString(" ")
     }
 
     val bgGradient = Brush.verticalGradient(
@@ -803,8 +814,13 @@ fun TimerCompletionFullScreen(
                                 modifier = Modifier.size(15.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
+                            val durationLabel = if (isPartialCompletion && targetSeconds > durationSeconds) {
+                                "${TimeUtils.formatSecondsToReadable(durationSeconds)} of ${TimeUtils.formatSecondsToReadable(targetSeconds)}"
+                            } else {
+                                TimeUtils.formatSecondsToReadable(durationSeconds)
+                            }
                             Text(
-                                text = "${TimeUtils.formatSecondsToReadable(durationSeconds)} • ${if (sessionType == SessionType.DEEP) "Deep Work" else "Shallow Work"} • $subject",
+                                text = "$durationLabel • ${if (sessionType == SessionType.DEEP) "Deep Work" else "Shallow Work"} • $subject",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = accentColor
@@ -813,49 +829,65 @@ fun TimerCompletionFullScreen(
                     }
                 }
 
-                // Middle: Goal Outcome (if partial) + Glassmorphic Rating + Journey Reflection Card
+                // Middle: Journey State + Next Action + Glassmorphic Rating + Reflection Card
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    if (isPartialCompletion) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(glassCardBrush)
-                                .border(BorderStroke(1.dp, glassBorderBrush), RoundedCornerShape(20.dp))
-                                .padding(16.dp)
-                        ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text(
-                                    text = "WAS YOUR GOAL ACHIEVED?",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                FlowRow(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    goalOptions.forEach { option ->
-                                        val isSelected = goalStatus == option
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = { goalStatus = option },
-                                            label = {
-                                                Text(
-                                                    text = option,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                                )
-                                            },
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = accentColor.copy(alpha = 0.24f),
-                                                selectedLabelColor = accentColor
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(glassCardBrush)
+                            .border(BorderStroke(1.dp, glassBorderBrush), RoundedCornerShape(20.dp))
+                            .padding(16.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                text = if (isPartialCompletion) "PARTIAL JOURNEY STATE" else "JOURNEY STATE & NEXT STEP",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                stateOptions.forEach { option ->
+                                    val isSelected = journeyState == option
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { journeyState = option },
+                                        label = {
+                                            Text(
+                                                text = option,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                             )
+                                        },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = accentColor.copy(alpha = 0.24f),
+                                            selectedLabelColor = accentColor
                                         )
-                                    }
+                                    )
+                                }
+                            }
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                nextActionChips.forEach { actionChip ->
+                                    val isChosen = nextAction == actionChip
+                                    FilterChip(
+                                        selected = isChosen,
+                                        onClick = { nextAction = if (isChosen) "" else actionChip },
+                                        label = { Text("Next: $actionChip", style = MaterialTheme.typography.labelSmall) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            selectedLabelColor = MaterialTheme.colorScheme.primary
+                                        )
+                                    )
                                 }
                             }
                         }

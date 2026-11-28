@@ -37,6 +37,8 @@ interface PolicyStore {
     val pauseEventsCount: StateFlow<Int>
     val isDnsProtectionEnabled: StateFlow<Boolean>
 
+    val customAllowedDomains: StateFlow<Map<Long, String>>
+
     suspend fun setActiveProfile(profile: BlockingProfile)
     suspend fun setTierEnabled(tier: PolicyTier, enabled: Boolean)
     suspend fun setPauseUntil(pauseUntilMillis: Long?)
@@ -47,6 +49,7 @@ interface PolicyStore {
 
     suspend fun addCustomAllowDomain(rawDomain: String): Boolean
     suspend fun removeCustomAllowDomain(rawDomain: String): Boolean
+    suspend fun removeCustomAllowDomainByHash(hash: Long): Boolean
     suspend fun clearCustomAllowDomains()
 
     suspend fun incrementTodayBlockedCount()
@@ -66,6 +69,7 @@ class PolicyStoreImpl @Inject constructor(
     private val _activeProfile = MutableStateFlow(loadProfile())
     private val _tierPreferences = MutableStateFlow(loadTierPreferences())
     private val _customAllowedHashes = MutableStateFlow(loadAllowedHashes())
+    private val _customAllowedDomains = MutableStateFlow(loadAllowedDomainMap())
     private val _pauseUntil = MutableStateFlow<Long?>(loadPauseUntil())
     private val _upstreamProvider = MutableStateFlow(loadUpstreamProvider())
     private val _blockResponseMode = MutableStateFlow(loadBlockResponseMode())
@@ -81,6 +85,7 @@ class PolicyStoreImpl @Inject constructor(
     override val todayBlockedCount: StateFlow<Int> = _todayBlockedCount.asStateFlow()
     override val pauseEventsCount: StateFlow<Int> = _pauseEventsCount.asStateFlow()
     override val isDnsProtectionEnabled: StateFlow<Boolean> = _isDnsProtectionEnabled.asStateFlow()
+    override val customAllowedDomains: StateFlow<Map<Long, String>> = _customAllowedDomains.asStateFlow()
 
     override val policySnapshot: StateFlow<PolicySnapshot> = combine(
         combine(
@@ -168,25 +173,42 @@ class PolicyStoreImpl @Inject constructor(
     }
 
     override suspend fun addCustomAllowDomain(rawDomain: String): Boolean {
+        val normalized = DomainNormalizer.normalize(rawDomain)
         val hash = DomainNormalizer.normalizeAndHash(rawDomain) ?: return false
-        val updated = _customAllowedHashes.value + hash
-        saveAllowedHashes(updated)
-        _customAllowedHashes.value = updated
+        val updatedHashes = _customAllowedHashes.value + hash
+        val updatedMap = if (normalized.isNotEmpty()) {
+            _customAllowedDomains.value + (hash to normalized)
+        } else {
+            _customAllowedDomains.value
+        }
+        saveAllowedHashes(updatedHashes)
+        saveAllowedDomainMap(updatedMap)
+        _customAllowedHashes.value = updatedHashes
+        _customAllowedDomains.value = updatedMap
         return true
     }
 
     override suspend fun removeCustomAllowDomain(rawDomain: String): Boolean {
         val hash = DomainNormalizer.normalizeAndHash(rawDomain) ?: return false
+        return removeCustomAllowDomainByHash(hash)
+    }
+
+    override suspend fun removeCustomAllowDomainByHash(hash: Long): Boolean {
         if (!_customAllowedHashes.value.contains(hash)) return false
-        val updated = _customAllowedHashes.value - hash
-        saveAllowedHashes(updated)
-        _customAllowedHashes.value = updated
+        val updatedHashes = _customAllowedHashes.value - hash
+        val updatedMap = _customAllowedDomains.value - hash
+        saveAllowedHashes(updatedHashes)
+        saveAllowedDomainMap(updatedMap)
+        _customAllowedHashes.value = updatedHashes
+        _customAllowedDomains.value = updatedMap
         return true
     }
 
     override suspend fun clearCustomAllowDomains() {
         saveAllowedHashes(emptySet())
+        saveAllowedDomainMap(emptyMap())
         _customAllowedHashes.value = emptySet()
+        _customAllowedDomains.value = emptyMap()
     }
 
     private val counterLock = Any()
@@ -274,6 +296,31 @@ class PolicyStoreImpl @Inject constructor(
             .apply()
     }
 
+    private fun loadAllowedDomainMap(): Map<Long, String> {
+        val raw = prefs.getStringSet(KEY_ALLOWED_DOMAIN_MAP, emptySet()) ?: emptySet()
+        val result = mutableMapOf<Long, String>()
+        raw.forEach { entry ->
+            val sep = entry.indexOf('|')
+            if (sep > 0) {
+                val hash = entry.substring(0, sep).toLongOrNull(16)
+                val domain = entry.substring(sep + 1)
+                if (hash != null && domain.isNotBlank()) {
+                    result[hash] = domain
+                }
+            }
+        }
+        return result
+    }
+
+    private fun saveAllowedDomainMap(domains: Map<Long, String>) {
+        val encoded = domains.entries.map { (hash, domain) ->
+            "${java.lang.Long.toHexString(hash)}|$domain"
+        }.toSet()
+        prefs.edit()
+            .putStringSet(KEY_ALLOWED_DOMAIN_MAP, encoded)
+            .apply()
+    }
+
     private fun loadPauseUntil(): Long? {
         if (!prefs.contains(KEY_PAUSE_UNTIL)) return null
         val value = prefs.getLong(KEY_PAUSE_UNTIL, 0L)
@@ -290,6 +337,7 @@ class PolicyStoreImpl @Inject constructor(
         private const val KEY_BLOCK_RESPONSE_MODE = "block_response_mode"
         private const val KEY_EXCLUDE_OWN_APP = "exclude_own_app_from_vpn"
         private const val KEY_ALLOWED_HASHES = "custom_allowed_hashes"
+        private const val KEY_ALLOWED_DOMAIN_MAP = "custom_allowed_domain_map"
         private const val KEY_BLOCKED_DAY = "blocked_day_key"
         private const val KEY_BLOCKED_COUNT = "blocked_today_count"
         private const val KEY_PAUSE_EVENTS_COUNT = "pause_events_count"

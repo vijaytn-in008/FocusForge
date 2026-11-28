@@ -15,6 +15,8 @@ import com.focusforge.app.data.model.SessionType
 import com.focusforge.app.data.repository.SessionRepository
 import com.focusforge.app.service.TimerService
 import com.focusforge.app.ui.theme.FocusForgeTheme
+import com.focusforge.app.ui.timer.PendingJourney
+import com.focusforge.app.ui.timer.PendingJourneyStorage
 import com.focusforge.app.ui.timer.TimerCompletionFullScreen
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -70,18 +72,11 @@ class TimerCompletionActivity : ComponentActivity() {
                             note.isNotBlank() -> note.trim()
                             else -> topic.trim()
                         }
-                        getSharedPreferences("focusforge_pending_journey", Context.MODE_PRIVATE)
-                            .edit()
-                            .remove("has_pending")
-                            .remove("subject")
-                            .remove("topic")
-                            .remove("startTimeMillis")
-                            .remove("durationMin")
-                            .remove("durationSeconds")
-                            .remove("sessionType")
-                            .remove("note")
-                            .putLong("last_handled_start_time", startTimeMillis)
-                            .apply()
+                        PendingJourneyStorage.remove(
+                            prefs = PendingJourneyStorage.prefs(this@TimerCompletionActivity),
+                            startTimeMillis = startTimeMillis,
+                            lastHandledStartTime = startTimeMillis
+                        )
                         TimerService.resetState()
                         lifecycleScope.launch {
                             sessionRepository.saveSession(
@@ -98,34 +93,28 @@ class TimerCompletionActivity : ComponentActivity() {
                         }
                     },
                     onSaveLater = { note ->
-                        getSharedPreferences("focusforge_pending_journey", Context.MODE_PRIVATE)
-                            .edit()
-                            .putBoolean("has_pending", true)
-                            .putString("subject", subject)
-                            .putString("topic", topic)
-                            .putLong("startTimeMillis", startTimeMillis)
-                            .putInt("durationMin", durationMin)
-                            .putInt("durationSeconds", durationSeconds)
-                            .putString("sessionType", sessionType.name)
-                            .putString("note", note.trim())
-                            .putLong("last_handled_start_time", startTimeMillis)
-                            .apply()
+                        PendingJourneyStorage.addOrUpdate(
+                            prefs = PendingJourneyStorage.prefs(this@TimerCompletionActivity),
+                            item = PendingJourney(
+                                subject = subject,
+                                topic = topic,
+                                startTimeMillis = startTimeMillis,
+                                durationMin = durationMin,
+                                durationSeconds = durationSeconds,
+                                sessionType = sessionType,
+                                note = note.trim()
+                            ),
+                            lastHandledStartTime = startTimeMillis
+                        )
                         TimerService.resetState()
                         finish()
                     },
                     onDiscard = {
-                        getSharedPreferences("focusforge_pending_journey", Context.MODE_PRIVATE)
-                            .edit()
-                            .remove("has_pending")
-                            .remove("subject")
-                            .remove("topic")
-                            .remove("startTimeMillis")
-                            .remove("durationMin")
-                            .remove("durationSeconds")
-                            .remove("sessionType")
-                            .remove("note")
-                            .putLong("last_handled_start_time", startTimeMillis)
-                            .apply()
+                        PendingJourneyStorage.remove(
+                            prefs = PendingJourneyStorage.prefs(this@TimerCompletionActivity),
+                            startTimeMillis = startTimeMillis,
+                            lastHandledStartTime = startTimeMillis
+                        )
                         TimerService.resetState()
                         finish()
                     }
