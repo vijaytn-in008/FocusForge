@@ -31,9 +31,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
@@ -471,73 +473,29 @@ fun TimerScreen(
         }
     }
 
-    // Stop Confirmation Dialog
+    // In-App Partial-Completion Journey Page (records whether goals were achieved or not)
     if (showStopConfirmation) {
+        val elapsedSec = (timerState.totalSeconds - timerState.remainingSeconds).coerceAtLeast(1)
         var earlyRating by remember { androidx.compose.runtime.mutableIntStateOf(4) }
-        AlertDialog(
-            onDismissRequest = { showStopConfirmation = false },
-            title = {
-                Text(
-                    text = "End Focus Session Early",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium
-                )
+        TimerCompletionFullScreen(
+            subject = timerState.subject.ifBlank { "General Focus" },
+            durationSeconds = elapsedSec,
+            sessionType = timerState.sessionType,
+            initialNote = "",
+            currentRating = earlyRating,
+            isPartialCompletion = true,
+            onRatingSelected = { earlyRating = it.coerceIn(1, 5) },
+            onSaveNow = { note ->
+                showStopConfirmation = false
+                viewModel.stopAndSaveSession(context, rating = earlyRating, reflectionNote = note)
             },
-            text = {
-                Column {
-                    Text(
-                        text = "Would you like to save the elapsed study minutes or discard this session?",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Rate Focus Quality (1 to 5):",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        (1..5).forEach { star ->
-                            val isFilled = star <= earlyRating
-                            Icon(
-                                imageVector = if (isFilled) Icons.Default.Star else Icons.Default.StarBorder,
-                                contentDescription = "Star $star",
-                                tint = Amber500,
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clickable { earlyRating = star }
-                                    .padding(2.dp)
-                            )
-                        }
-                    }
-                }
+            onSaveLater = { note ->
+                showStopConfirmation = false
+                viewModel.stopAndSaveForLater(context, reflectionNote = note)
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showStopConfirmation = false
-                        viewModel.stopAndSaveSession(context, rating = earlyRating)
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Emerald600)
-                ) {
-                    Text("Save Minutes")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showStopConfirmation = false
-                        viewModel.stopTimer(context, shouldSavePartial = false)
-                    }
-                ) {
-                    Text("Discard", color = Rose600)
-                }
+            onDiscard = {
+                showStopConfirmation = false
+                viewModel.stopTimer(context, shouldSavePartial = false)
             }
         )
     }
@@ -708,12 +666,14 @@ fun TimerCompletionFullScreen(
     sessionType: SessionType,
     initialNote: String,
     currentRating: Int,
+    isPartialCompletion: Boolean = false,
     onRatingSelected: (Int) -> Unit,
     onSaveNow: (String) -> Unit,
     onSaveLater: (String) -> Unit,
     onDiscard: () -> Unit
 ) {
     var reflectionNote by remember(initialNote) { mutableStateOf(initialNote) }
+    var goalStatus by remember { mutableStateOf("Goal Achieved") }
     val accentColor = if (sessionType == SessionType.DEEP) Emerald500 else Amber500
     val ratingDescriptions = listOf(
         1 to "Distracted • Tough session, still showed up",
@@ -722,7 +682,16 @@ fun TimerCompletionFullScreen(
         4 to "High Focus • Smooth study flow",
         5 to "Deep Flow • Peak concentration achieved"
     )
+    val goalOptions = listOf("Goal Achieved", "In Progress", "Not Achieved")
     val quickTags = listOf("Deep flow", "Zero distractions", "Milestone hit", "Needs review")
+    val buildFinalNote: () -> String = {
+        val base = reflectionNote.trim()
+        if (isPartialCompletion) {
+            if (base.isNotEmpty()) "[$goalStatus] $base" else "[$goalStatus]"
+        } else {
+            base
+        }
+    }
 
     val bgGradient = Brush.verticalGradient(
         colors = listOf(
@@ -748,7 +717,7 @@ fun TimerCompletionFullScreen(
     )
 
     Dialog(
-        onDismissRequest = { onSaveLater(reflectionNote) },
+        onDismissRequest = { onSaveLater(buildFinalNote()) },
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false
@@ -762,9 +731,10 @@ fun TimerCompletionFullScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(bgGradient)
-                    .padding(horizontal = 22.dp, vertical = 36.dp),
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 22.dp, vertical = 32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 // Top celebratory summary
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -789,7 +759,7 @@ fun TimerCompletionFullScreen(
                     }
                     Spacer(modifier = Modifier.height(14.dp))
                     Text(
-                        text = "Focus Complete!",
+                        text = if (isPartialCompletion) "Partial Journey" else "Focus Complete!",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onBackground
@@ -821,11 +791,53 @@ fun TimerCompletionFullScreen(
                     }
                 }
 
-                // Middle: Glassmorphic Rating + Journey Reflection Card
+                // Middle: Goal Outcome (if partial) + Glassmorphic Rating + Journey Reflection Card
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    if (isPartialCompletion) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(glassCardBrush)
+                                .border(BorderStroke(1.dp, glassBorderBrush), RoundedCornerShape(20.dp))
+                                .padding(16.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text(
+                                    text = "WAS YOUR GOAL ACHIEVED?",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    goalOptions.forEach { option ->
+                                        val isSelected = goalStatus == option
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { goalStatus = option },
+                                            label = {
+                                                Text(
+                                                    text = option,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                                )
+                                            },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = accentColor.copy(alpha = 0.24f),
+                                                selectedLabelColor = accentColor
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -946,7 +958,7 @@ fun TimerCompletionFullScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Button(
-                        onClick = { onSaveNow(reflectionNote) },
+                        onClick = { onSaveNow(buildFinalNote()) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(54.dp),
@@ -967,7 +979,7 @@ fun TimerCompletionFullScreen(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         OutlinedButton(
-                            onClick = { onSaveLater(reflectionNote) },
+                            onClick = { onSaveLater(buildFinalNote()) },
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp),

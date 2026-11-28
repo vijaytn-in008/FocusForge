@@ -212,7 +212,7 @@ class TimerViewModel @Inject constructor(
         TimerService.resetState()
     }
 
-    fun stopAndSaveSession(context: Context, rating: Int = 4) {
+    fun stopAndSaveSession(context: Context, rating: Int = 4, reflectionNote: String = "") {
         // Capture state BEFORE stopping the service (which resets TimerState)
         val snapshot = TimerService.timerState.value
         TimerService.stopTimer(context)
@@ -234,7 +234,8 @@ class TimerViewModel @Inject constructor(
 
         lastSavedStartTimeMillis = snapshot.startTimeMillis
         completedSessionDetails = null
-        _formState.value = _formState.value.copy(showRatingDialog = false)
+        clearPendingJourney()
+        _formState.value = _formState.value.copy(showRatingDialog = false, pendingJourney = null)
         TimerService.resetState()
 
         viewModelScope.launch {
@@ -247,7 +248,7 @@ class TimerViewModel @Inject constructor(
             sessionRepository.saveSession(
                 Session(
                     subject = snapshot.subject.ifBlank { "General Focus" },
-                    topic = snapshot.topic,
+                    topic = combineTopicAndNote(snapshot.topic, reflectionNote),
                     startTime = startTime,
                     durationMin = durationMin,
                     focusRating = rating.coerceIn(1, 5),
@@ -255,6 +256,38 @@ class TimerViewModel @Inject constructor(
                 )
             )
         }
+    }
+
+    fun stopAndSaveForLater(context: Context, reflectionNote: String = "") {
+        val snapshot = TimerService.timerState.value
+        TimerService.stopTimer(context)
+
+        val elapsedSec = (snapshot.totalSeconds - snapshot.remainingSeconds).coerceAtLeast(1)
+        if (snapshot.status != TimerStatus.IDLE) {
+            val durationMin = maxOf(1, ceil(elapsedSec / 60.0).toInt())
+            val startTime = if (snapshot.startTimeMillis > 0L) {
+                snapshot.startTimeMillis
+            } else {
+                System.currentTimeMillis() - (durationMin * 60 * 1000L)
+            }
+            val pending = PendingJourney(
+                subject = snapshot.subject.ifBlank { "General Focus" },
+                topic = snapshot.topic,
+                startTimeMillis = startTime,
+                durationMin = durationMin,
+                durationSeconds = elapsedSec,
+                sessionType = snapshot.sessionType,
+                note = reflectionNote.trim()
+            )
+            persistPendingJourney(pending)
+            lastSavedStartTimeMillis = snapshot.startTimeMillis
+            _formState.value = _formState.value.copy(
+                showRatingDialog = false,
+                pendingJourney = pending
+            )
+        }
+        completedSessionDetails = null
+        TimerService.resetState()
     }
 
     fun saveCompletedSession(rating: Int, reflectionNote: String = "") {
