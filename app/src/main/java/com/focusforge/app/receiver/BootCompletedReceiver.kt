@@ -30,10 +30,10 @@ class BootCompletedReceiver : BroadcastReceiver() {
             val isDnsEnabled = policyPrefs.getBoolean("dns_protection_enabled", false)
 
             if (isBlockerEnabled) {
-                AppBlockerService.start(context)
+                try { AppBlockerService.start(context) } catch (_: Exception) {}
             }
             if (isDnsEnabled) {
-                DnsVpnService.start(context)
+                try { DnsVpnService.start(context) } catch (_: Exception) {}
             }
         }
     }

@@ -19,6 +19,7 @@ import android.os.ParcelFileDescriptor
 import android.provider.Settings
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.focusforge.app.BlockedAppActivity
 import com.focusforge.app.FocusForgeApp
 import com.focusforge.app.MainActivity
@@ -693,7 +694,12 @@ class DnsVpnService : VpnService() {
 
     private fun registerAirplaneReceiver() {
         if (!isAirplaneReceiverRegistered) {
-            registerReceiver(airplaneReceiver, IntentFilter(Intent.ACTION_AIRPLANE_MODE_CHANGED))
+            ContextCompat.registerReceiver(
+                this,
+                airplaneReceiver,
+                IntentFilter(Intent.ACTION_AIRPLANE_MODE_CHANGED),
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
             isAirplaneReceiverRegistered = true
         }
     }
@@ -863,18 +869,27 @@ class DnsVpnService : VpnService() {
             val intent = Intent(context, DnsVpnService::class.java).apply {
                 action = ACTION_START_VPN
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (_: Exception) {
+                // Safe guard against Android 12+ ForegroundServiceStartNotAllowedException
             }
         }
 
         fun stop(context: Context) {
+            if (!isVpnRunning.value) return
             val intent = Intent(context, DnsVpnService::class.java).apply {
                 action = ACTION_STOP_VPN
             }
-            context.startService(intent)
+            try {
+                context.startService(intent)
+            } catch (_: Exception) {
+                // Service already stopped or backgrounded
+            }
         }
     }
 }

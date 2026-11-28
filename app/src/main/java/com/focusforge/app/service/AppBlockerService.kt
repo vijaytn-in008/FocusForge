@@ -371,26 +371,40 @@ class AppBlockerService : Service() {
             val intent = Intent(context, AppBlockerService::class.java).apply {
                 action = ACTION_START_BLOCKER
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (_: Exception) {
+                // Safe guard against Android 12+ ForegroundServiceStartNotAllowedException
             }
         }
 
         fun stop(context: Context) {
+            if (!isServiceRunning.value) return
             val intent = Intent(context, AppBlockerService::class.java).apply {
                 action = ACTION_STOP_BLOCKER
             }
-            context.startService(intent)
+            try {
+                context.startService(intent)
+            } catch (_: Exception) {
+                // Service already stopped
+            }
         }
 
         fun triggerBypass(context: Context, durationSeconds: Int = 60) {
+            if (!isServiceRunning.value) return
             val intent = Intent(context, AppBlockerService::class.java).apply {
                 action = ACTION_TRIGGER_BYPASS
                 putExtra(EXTRA_BYPASS_DURATION, durationSeconds)
             }
-            context.startService(intent)
+            try {
+                context.startService(intent)
+            } catch (_: Exception) {
+                // Service not running
+            }
         }
     }
 }

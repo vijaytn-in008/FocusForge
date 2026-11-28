@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.PowerManager
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.focusforge.app.data.model.PolicySnapshot
 
 /**
@@ -62,7 +63,12 @@ class PollingGate(
                 addAction(Intent.ACTION_SCREEN_ON)
                 addAction(Intent.ACTION_SCREEN_OFF)
             }
-            context.registerReceiver(screenReceiver, filter)
+            ContextCompat.registerReceiver(
+                context,
+                screenReceiver,
+                filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
             isReceiverRegistered = true
         }
     }
