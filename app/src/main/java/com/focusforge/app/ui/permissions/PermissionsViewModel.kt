@@ -8,8 +8,8 @@ import android.os.Build
 import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
-import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.ViewModel
+import com.focusforge.app.service.NotificationSilenceManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,8 +45,7 @@ class PermissionsViewModel @Inject constructor(
     }
 
     private fun checkNotificationListenerPermission(): Boolean {
-        return NotificationManagerCompat.getEnabledListenerPackages(context)
-            .contains(context.packageName)
+        return NotificationSilenceManager.isPermissionGranted(context)
     }
 
     private fun checkUsageStatsPermission(): Boolean {
@@ -96,6 +95,6 @@ class PermissionsViewModel @Inject constructor(
     }
 
     fun getNotificationListenerIntent(): Intent {
-        return Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+        return NotificationSilenceManager.getPermissionIntent()
     }
 }

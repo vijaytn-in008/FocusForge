@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material.icons.filled.Security
 import android.net.VpnService
+import com.focusforge.app.service.NotificationSilenceManager
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -168,11 +169,11 @@ fun PermissionsScreen(
                 }
             )
 
-            // 4. Notification Access (Silence Blocked Apps during Focus Hours)
+            // 4. Flavor Notification Silencing (DND in standard / NotificationListener in full)
             PermissionItemCard(
                 icon = Icons.Default.NotificationsOff,
-                title = "Notification Silencing",
-                description = "Mutes notifications from blocked apps during active focus hours.",
+                title = NotificationSilenceManager.permissionTitle,
+                description = NotificationSilenceManager.permissionDescription,
                 isGranted = state.hasNotificationListener,
                 onGrantClick = {
                     try {

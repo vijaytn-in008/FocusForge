@@ -4,14 +4,51 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import com.focusforge.app.data.model.BlockingProfile
+import com.focusforge.app.data.repository.PolicyStore
+import com.focusforge.app.service.AppBlockerService
+import com.focusforge.app.service.NotificationSilenceManager
+import com.focusforge.app.service.TimerService
+import com.focusforge.app.service.TimerStatus
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @HiltAndroidApp
 class FocusForgeApp : Application() {
 
+    @Inject
+    lateinit var policyStore: PolicyStore
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
+        observeFocusNotificationSilencing()
+    }
+
+    private fun observeFocusNotificationSilencing() {
+        appScope.launch {
+            combine(
+                policyStore.policySnapshot,
+                TimerService.timerState,
+                AppBlockerService.isServiceRunning,
+                AppBlockerService.isBypassActive
+            ) { snapshot, timerState, blockerRunning, bypassActive ->
+                val profileActive = snapshot.activeProfile != BlockingProfile.OFF &&
+                    !snapshot.isPaused(System.currentTimeMillis())
+                val timerRunning = timerState.status == TimerStatus.RUNNING
+                val shieldActive = blockerRunning && !bypassActive
+                profileActive || timerRunning || shieldActive
+            }.collect { active ->
+                NotificationSilenceManager.syncFocusState(this@FocusForgeApp, active)
+            }
+        }
     }
 
     /**

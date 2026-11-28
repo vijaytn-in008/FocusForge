@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    name: Test, Build APK & AAB
+    name: Test & Build Standard + Full APKs
     runs-on: ubuntu-latest
 
     steps:
@@ -48,18 +48,27 @@ jobs:
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > app/release-keystore.jks
           echo "FOCUSFORGE_KEYSTORE_PATH=$GITHUB_WORKSPACE/app/release-keystore.jks" >> "$GITHUB_ENV"
 
-      - name: Run Unit Tests & Build Debug/Release APKs + AAB
+      - name: Run Unit Tests & Build Standard + Full APKs
         env:
           FOCUSFORGE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          FOCUSFORGE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          FOCUSFORGE_KEYSTORE_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           FOCUSFORGE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew testDebugUnitTest assembleDebug assembleRelease bundleRelease --stacktrace
+        run: ./gradlew testStandardDebugUnitTest testFullDebugUnitTest assembleStandardRelease assembleFullRelease --stacktrace
 
-      - name: Upload Build Artifacts
+      - name: Prepare Named Release APKs
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/standard/release/app-standard-release.apk dist/FocusForge-standard.apk
+          cp app/build/outputs/apk/full/release/app-full-release.apk dist/FocusForge-full.apk
+
+      - name: Upload FocusForge-standard.apk
         uses: actions/upload-artifact@v4
         with:
-          name: FocusForge-release-artifacts
-          path: |
-            app/build/outputs/apk/debug/app-debug.apk
-            app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/bundle/release/app-release.aab
+          name: FocusForge-standard.apk
+          path: dist/FocusForge-standard.apk
+
+      - name: Upload FocusForge-full.apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: FocusForge-full.apk
+          path: dist/FocusForge-full.apk

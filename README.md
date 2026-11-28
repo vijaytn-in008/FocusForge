@@ -58,22 +58,30 @@ See [docs/PRIVACY_POLICY.md](file:///home/vijay/Documents/Projects/FocusForge/do
 
 ## Installation & Building From Source
 
+### Choosing a Flavor (`standard` vs. `full`)
+FocusForge is published in two distribution flavors:
+- **`FocusForge-standard.apk`** *(Recommended for Play / Minimal Permissions)*: Silences notifications during focus blocks via **Do Not Disturb** (`ACCESS_NOTIFICATION_POLICY`), and degrades gracefully if DND access is not granted. Does **not** declare `BIND_NOTIFICATION_LISTENER_SERVICE`, `BIND_ACCESSIBILITY_SERVICE`, `READ_SMS`, or `RECEIVE_SMS`.
+- **`FocusForge-full.apk`**: Includes `NotificationListenerService` (`BIND_NOTIFICATION_LISTENER_SERVICE`) to dismiss notifications specifically from apps on your App Shield blocklist during active focus hours.
+
 ### Option 1: Install Release APK via ADB
 ```bash
-# Build non-debuggable release APK
-./gradlew assembleRelease
+# Build both non-debuggable release APKs
+./gradlew assembleStandardRelease assembleFullRelease
 
-# Install onto a connected Android device (preserving existing local data)
-adb install -r -d app/build/outputs/apk/release/app-release.apk
+# Install standard flavor onto a connected Android device
+adb install -r -d app/build/outputs/apk/standard/release/app-standard-release.apk
+
+# Or install full flavor
+adb install -r -d app/build/outputs/apk/full/release/app-full-release.apk
 ```
 
-### Option 2: Verify & Build Debug / Play Bundle (AAB)
+### Option 2: Verify, Test & Build All Variants
 ```bash
 # 1. Verify blocklists & false-positive guard
 python3 tools/verify_blocklists.py
 
-# 2. Run unit tests & build Debug APK, Release APK, and Release AAB
-./gradlew testDebugUnitTest assembleDebug assembleRelease bundleRelease
+# 2. Run unit tests & build Debug/Release APKs and Play AAB
+./gradlew testStandardDebugUnitTest testFullDebugUnitTest assembleStandardRelease assembleFullRelease bundleStandardRelease
 ```
 
 ---

@@ -15,8 +15,8 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Silences notifications from blocked applications during active focus hours
- * (when a blocking profile is active or a focus timer is running).
+ * Full flavor: silences notifications from blocked applications during active focus hours
+ * (when a blocking profile is active, App Shield is guarding, or a focus timer is running).
  */
 @AndroidEntryPoint
 class FocusNotificationListenerService : NotificationListenerService() {

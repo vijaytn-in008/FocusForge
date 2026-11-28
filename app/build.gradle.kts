@@ -23,6 +23,16 @@ android {
         }
     }
 
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("standard") {
+            dimension = "distribution"
+        }
+        create("full") {
+            dimension = "distribution"
+        }
+    }
+
     signingConfigs {
         create("release") {
             val keystorePath = System.getenv("FOCUSFORGE_KEYSTORE_PATH")
