@@ -129,6 +129,15 @@ class DnsVpnService : VpnService() {
         refreshPhysicalNetwork()
 
         serviceScope.launch {
+            policyStore.isDnsProtectionEnabled.collect { enabled ->
+                if (!enabled && isRunning) {
+                    Log.i(TAG, "DNS protection toggled OFF; stopping VPN immediately")
+                    stopVpn()
+                }
+            }
+        }
+
+        serviceScope.launch {
             policyStore.policySnapshot.collect { snapshot ->
                 val rulesChanged = currentPolicy.enabledTiers != snapshot.enabledTiers ||
                     currentPolicy.privateBlockedDomainHashes != snapshot.privateBlockedDomainHashes ||
@@ -199,11 +208,15 @@ class DnsVpnService : VpnService() {
                 return START_STICKY
             }
             else -> {
+                if (!policyStore.isDnsProtectionEnabled.value) {
+                    stopVpn()
+                    return START_NOT_STICKY
+                }
                 healthMonitor.reset()
                 _isFailOpenPaused.value = false
                 clearFailOpenAlertNotification()
                 startVpnTunnel()
-                return START_STICKY
+                return START_NOT_STICKY
             }
         }
     }
@@ -405,8 +418,8 @@ class DnsVpnService : VpnService() {
 
         val dnsPayload = packet.copyOfRange(query.dnsPayloadOffset, query.dnsPayloadOffset + query.dnsPayloadLength)
 
-        // Attempt 1 + bounded 1 retry (up to 2 resolvers or same resolver twice)
-        val targets = if (resolvers.size >= 2) resolvers.take(2) else listOf(resolvers[0], resolvers[0])
+        // Attempt across up to 3 resolvers so IPv6/carrier flakiness falls back cleanly
+        val targets = if (resolvers.size >= 2) resolvers.take(3) else listOf(resolvers[0], resolvers[0])
         val startNs = System.nanoTime()
 
         for (upstreamAddress in targets) {
@@ -548,7 +561,8 @@ class DnsVpnService : VpnService() {
             physicalLinkProps
         }
 
-        val resolvers = mutableListOf<InetAddress>()
+        val ipv4Resolvers = mutableListOf<InetAddress>()
+        val ipv6Resolvers = mutableListOf<InetAddress>()
         linkProps?.dnsServers?.forEach { dns ->
             val host = dns.hostAddress ?: ""
             if (!dns.isLoopbackAddress &&
@@ -557,10 +571,22 @@ class DnsVpnService : VpnService() {
                 host != "fd00::1" &&
                 host != "192.0.0.1"
             ) {
-                resolvers.add(dns)
+                if (dns is java.net.Inet4Address) {
+                    ipv4Resolvers.add(dns)
+                } else {
+                    ipv6Resolvers.add(dns)
+                }
             }
         }
-        return resolvers
+        val combined = (ipv4Resolvers + ipv6Resolvers).toMutableList()
+        // Always include reliable fallback resolvers at the end for System Default if carrier DNS is unreachable
+        for (fallbackIp in listOf("1.1.1.1", "8.8.8.8")) {
+            try {
+                val addr = InetAddress.getByName(fallbackIp)
+                if (addr !in combined) combined.add(addr)
+            } catch (_: Exception) {}
+        }
+        return combined
     }
 
     private fun writeToTun(tunOut: FileOutputStream, data: ByteArray) {
@@ -614,18 +640,43 @@ class DnsVpnService : VpnService() {
     @Suppress("DEPRECATION")
     private fun refreshPhysicalNetwork() {
         val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        val active = cm.activeNetwork
+        if (active != null) {
+            val activeCaps = cm.getNetworkCapabilities(active)
+            if (activeCaps != null &&
+                !activeCaps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                activeCaps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            ) {
+                physicalNetwork = active
+                physicalLinkProps = cm.getLinkProperties(active)
+                updatePrivateDnsState(physicalLinkProps)
+                return
+            }
+        }
+        // Prefer a validated non-VPN internet network
+        var fallbackNet: Network? = null
+        var fallbackProps: LinkProperties? = null
         for (net in cm.allNetworks) {
             val caps = cm.getNetworkCapabilities(net) ?: continue
             if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
                 caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             ) {
-                physicalNetwork = net
-                physicalLinkProps = cm.getLinkProperties(net)
-                updatePrivateDnsState(physicalLinkProps)
-                return
+                val props = cm.getLinkProperties(net)
+                if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
+                    physicalNetwork = net
+                    physicalLinkProps = props
+                    updatePrivateDnsState(props)
+                    return
+                }
+                if (fallbackNet == null) {
+                    fallbackNet = net
+                    fallbackProps = props
+                }
             }
         }
-        updatePrivateDnsState(null)
+        physicalNetwork = fallbackNet
+        physicalLinkProps = fallbackProps
+        updatePrivateDnsState(fallbackProps)
     }
 
     private fun updatePrivateDnsState(linkProperties: LinkProperties?) {

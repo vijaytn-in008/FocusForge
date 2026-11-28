@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.focusforge.app.data.repository.PolicyStore
 import com.focusforge.app.data.repository.PrivateListStore
 import com.focusforge.app.data.repository.PrivateVault
 import com.focusforge.app.enforcement.BlocklistEngine
@@ -66,6 +67,7 @@ data class PrivateListUiState(
 class PrivateListViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val privateListStore: PrivateListStore,
+    private val policyStore: PolicyStore,
     private val blocklistEngine: BlocklistEngine,
     private val ruleChangeGate: RuleChangeGate
 ) : ViewModel() {
@@ -251,6 +253,22 @@ class PrivateListViewModel @Inject constructor(
     }
 
     private fun confirmAddDomain(domain: String) {
+        val hash = DomainNormalizer.normalizeAndHash(domain)
+        if (hash == null) {
+            _uiState.value = _uiState.value.copy(statusMessage = "Invalid domain.")
+            return
+        }
+        val snapshot = policyStore.policySnapshot.value
+        if (snapshot.privateBlockedDomainHashes.contains(hash)) {
+            _uiState.value = _uiState.value.copy(statusMessage = "Already in Custom Rules.")
+            return
+        }
+        if (snapshot.customAllowedDomainHashes.contains(hash)) {
+            _uiState.value = _uiState.value.copy(
+                statusMessage = "Already in Allowlist. Remove it from Allowlist first."
+            )
+            return
+        }
         val addedHash = privateListStore.addPrivateDomain(domain)
         if (addedHash != null && !privateListStore.isHashOnlyMode.value) {
             sessionDomainNames[addedHash] = domain
@@ -270,8 +288,18 @@ class PrivateListViewModel @Inject constructor(
         val tokens = pastedText.split('\n', ',', ';', ' ')
             .map { DomainNormalizer.normalize(it) }
             .filter { it.isNotEmpty() }
+            .distinct()
+        val snapshot = policyStore.policySnapshot.value
         var added = 0
+        var skipped = 0
         for (d in tokens) {
+            val hCandidate = DomainNormalizer.fnv1a64(d)
+            if (snapshot.privateBlockedDomainHashes.contains(hCandidate) ||
+                snapshot.customAllowedDomainHashes.contains(hCandidate)
+            ) {
+                skipped++
+                continue
+            }
             val h = privateListStore.addPrivateDomain(d)
             if (h != null) {
                 if (!privateListStore.isHashOnlyMode.value) {
@@ -281,7 +309,12 @@ class PrivateListViewModel @Inject constructor(
             }
         }
         _uiState.value = _uiState.value.copy(
-            statusMessage = if (added > 0) "Added $added rule(s)." else "No valid domains found in clipboard."
+            statusMessage = when {
+                added > 0 && skipped > 0 -> "Added $added rule(s); skipped $skipped duplicate/allowlisted."
+                added > 0 -> "Added $added rule(s)."
+                skipped > 0 -> "Skipped $skipped duplicate or allowlisted domain(s)."
+                else -> "No valid domains found in clipboard."
+            }
         )
         refreshMaskedItems()
     }

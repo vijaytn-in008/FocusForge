@@ -36,6 +36,15 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 @Composable
 fun BottomNavBar(navController: NavController) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val shieldRoutes = remember {
+        setOf(
+            Screen.Shield.route,
+            Screen.Protection.route,
+            Screen.PrivateList.route,
+            Screen.WhyBlocked.route,
+            Screen.Permissions.route
+        )
+    }
     val currentRoute = navBackStackEntry?.destination?.route
 
     Surface(
@@ -57,7 +66,8 @@ fun BottomNavBar(navController: NavController) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Screen.bottomNavScreens.forEach { screen ->
-                    val isSelected = currentRoute == screen.route
+                    val isSelected = currentRoute == screen.route ||
+                        (screen == Screen.Shield && currentRoute in shieldRoutes)
                     val contentColor = if (isSelected) {
                         MaterialTheme.colorScheme.primary
                     } else {

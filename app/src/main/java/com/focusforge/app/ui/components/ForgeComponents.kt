@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -71,26 +72,47 @@ fun ForgeCard(
         )
 
     val shape = RoundedCornerShape(cornerRadius)
-    val glassBackground = Brush.linearGradient(
-        colors = listOf(
-            containerColor.copy(alpha = 0.78f),
-            Color.White.copy(alpha = 0.08f),
-            containerColor.copy(alpha = 0.62f)
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+
+    val glassBackground = if (isDark) {
+        Brush.linearGradient(
+            colors = listOf(
+                containerColor.copy(alpha = 0.84f),
+                Color.White.copy(alpha = 0.06f),
+                containerColor.copy(alpha = 0.70f)
+            )
         )
-    )
-    val glassBorder = Brush.linearGradient(
-        colors = listOf(
-            Color.White.copy(alpha = 0.24f),
-            borderColor.copy(alpha = 0.55f),
-            Color.White.copy(alpha = 0.08f)
+    } else {
+        Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.94f),
+                containerColor.copy(alpha = 0.88f)
+            )
         )
-    )
+    }
+
+    val glassBorder = if (isDark) {
+        Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.22f),
+                borderColor.copy(alpha = 0.55f),
+                Color.White.copy(alpha = 0.08f)
+            )
+        )
+    } else {
+        Brush.linearGradient(
+            colors = listOf(
+                borderColor.copy(alpha = 0.45f),
+                borderColor.copy(alpha = 0.25f)
+            )
+        )
+    }
 
     Surface(
         modifier = cardModifier.fillMaxWidth(),
         shape = shape,
         color = Color.Transparent,
-        shadowElevation = elevation
+        shadowElevation = 0.dp
     ) {
         Box(
             modifier = Modifier

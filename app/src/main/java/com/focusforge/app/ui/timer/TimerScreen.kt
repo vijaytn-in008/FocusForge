@@ -85,6 +85,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -557,21 +558,42 @@ private fun FocusTypeGlassCard(
         label = "glassTintAlpha"
     )
 
-    val glassBackground = Brush.linearGradient(
-        colors = listOf(
-            accentColor.copy(alpha = 0.08f + 0.26f * tintAlpha),
-            Color.White.copy(alpha = 0.06f + 0.10f * tintAlpha),
-            MaterialTheme.colorScheme.surface.copy(alpha = 0.35f - 0.15f * tintAlpha)
-        )
-    )
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
-    val glassBorder = Brush.linearGradient(
-        colors = listOf(
-            Color.White.copy(alpha = 0.20f + 0.45f * tintAlpha),
-            accentColor.copy(alpha = 0.18f + 0.72f * tintAlpha),
-            Color.White.copy(alpha = 0.10f + 0.20f * tintAlpha)
+    val glassBackground = if (isDark) {
+        Brush.linearGradient(
+            colors = listOf(
+                if (isSelected) accentColor.copy(alpha = 0.28f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+                if (isSelected) accentColor.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)
+            )
         )
-    )
+    } else {
+        Brush.linearGradient(
+            colors = listOf(
+                accentColor.copy(alpha = 0.08f + 0.26f * tintAlpha),
+                Color.White.copy(alpha = 0.06f + 0.10f * tintAlpha),
+                MaterialTheme.colorScheme.surface.copy(alpha = 0.35f - 0.15f * tintAlpha)
+            )
+        )
+    }
+
+    val glassBorder = if (isDark) {
+        Brush.linearGradient(
+            colors = listOf(
+                if (isSelected) accentColor.copy(alpha = 0.90f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+                if (isSelected) accentColor.copy(alpha = 0.40f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+            )
+        )
+    } else {
+        Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.20f + 0.45f * tintAlpha),
+                accentColor.copy(alpha = 0.18f + 0.72f * tintAlpha),
+                Color.White.copy(alpha = 0.10f + 0.20f * tintAlpha)
+            )
+        )
+    }
 
     Box(
         modifier = modifier

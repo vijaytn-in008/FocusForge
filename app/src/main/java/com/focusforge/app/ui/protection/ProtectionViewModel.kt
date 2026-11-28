@@ -204,6 +204,22 @@ class ProtectionViewModel @Inject constructor(
 
     fun addAllowDomain() {
         val raw = _uiState.value.allowDomainInput
+        val hash = DomainNormalizer.normalizeAndHash(raw)
+        if (hash == null) {
+            _uiState.value = _uiState.value.copy(allowActionMessage = "Enter a valid domain name.")
+            return
+        }
+        val snapshot = _uiState.value.policySnapshot
+        if (snapshot.customAllowedDomainHashes.contains(hash)) {
+            _uiState.value = _uiState.value.copy(allowActionMessage = "Already in allowlist.")
+            return
+        }
+        if (snapshot.privateBlockedDomainHashes.contains(hash)) {
+            _uiState.value = _uiState.value.copy(
+                allowActionMessage = "This domain is in Custom Rules. Remove it from Custom Rules first."
+            )
+            return
+        }
         viewModelScope.launch {
             val added = policyStore.addCustomAllowDomain(raw)
             _uiState.value = if (added) {

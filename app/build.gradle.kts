@@ -35,6 +35,9 @@ android {
 
     signingConfigs {
         create("release") {
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
             val keystorePath = System.getenv("FOCUSFORGE_KEYSTORE_PATH")
                 ?: project.findProperty("FOCUSFORGE_KEYSTORE_PATH") as? String
             if (!keystorePath.isNullOrBlank() && file(keystorePath).exists()) {
@@ -53,6 +56,11 @@ android {
                 keyPassword = debugCfg.keyPassword
             }
         }
+    }
+
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     buildTypes {
