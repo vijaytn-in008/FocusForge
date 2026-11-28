@@ -869,7 +869,7 @@ private fun SevenDayFocusChartCard(
     if (days.isEmpty()) return
     var selectedIdx by remember(days.size) { mutableIntStateOf(days.lastIndex) }
     val selectedDay = days.getOrElse(selectedIdx) { days.last() }
-    val maxMinutes = (days.maxOfOrNull { it.deepMinutes } ?: 0).coerceAtLeast(30)
+    val maxMinutes = (days.maxOfOrNull { it.deepMinutes + it.shallowMinutes } ?: 0).coerceAtLeast(30)
 
     ForgeCard(
         borderColor = Emerald500.copy(alpha = 0.28f),
@@ -935,10 +935,16 @@ private fun SevenDayFocusChartCard(
                 days.forEachIndexed { idx, day ->
                     val isSelected = idx == selectedIdx
                     val deepRatio = day.deepMinutes.toFloat() / maxMinutes.toFloat()
+                    val shallowRatio = day.shallowMinutes.toFloat() / maxMinutes.toFloat()
                     val animatedDeepHeight by animateDpAsState(
                         targetValue = if (day.deepMinutes > 0) (76f * deepRatio).dp.coerceAtLeast(6.dp) else 0.dp,
                         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
                         label = "deepBar"
+                    )
+                    val animatedShallowHeight by animateDpAsState(
+                        targetValue = if (day.shallowMinutes > 0) (76f * shallowRatio).dp.coerceAtLeast(4.dp) else 0.dp,
+                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                        label = "shallowBar"
                     )
                     val highlightBg by animateColorAsState(
                         targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f) else Color.Transparent,
@@ -963,13 +969,26 @@ private fun SevenDayFocusChartCard(
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
                             contentAlignment = Alignment.BottomCenter
                         ) {
-                            if (day.deepMinutes > 0) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(animatedDeepHeight)
-                                        .background(Emerald500)
-                                )
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.Bottom
+                            ) {
+                                if (day.shallowMinutes > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(animatedShallowHeight)
+                                            .background(Amber500)
+                                    )
+                                }
+                                if (day.deepMinutes > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(animatedDeepHeight)
+                                            .background(Emerald500)
+                                    )
+                                }
                             }
                         }
                         Spacer(modifier = Modifier.height(6.dp))
